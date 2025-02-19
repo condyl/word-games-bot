@@ -4,7 +4,6 @@ from word_drawer import draw_all_words
 from press_start_button import focus_and_click_start
 import time
 import signal
-import sys
 from concurrent.futures import ThreadPoolExecutor
 import heapq
 from dataclasses import dataclass
@@ -42,7 +41,11 @@ def main():
         signal.alarm(80)
         
         # Get the actual game board from screenshot
-        board = get_game_board()
+        try:
+            board = get_game_board()
+        except Exception as e:
+            print(f"Failed to capture game board: {str(e)}")
+            return
         
         if board:
             print("Game Board:")
@@ -81,16 +84,17 @@ def main():
             
     except KeyboardInterrupt:
         print("\nProgram interrupted by user")
+        os._exit(0)  # Force exit all threads on interrupt
     finally:
         # Cancel the alarm in case we finish early
         signal.alarm(0)
 
-def draw_words_from_heap(word_heap, heap_lock):
+def draw_words_from_heap(word_heap: List[PrioritizedWord], heap_lock: Lock) -> None:
     """Draw words as they become available in the heap, longest first"""
     while True:
         with heap_lock:
             if not word_heap:
-                time.sleep(0.1)  # Short sleep if heap is empty but still collecting words
+                time.sleep(0.1)
                 continue
             
             prioritized_word = heapq.heappop(word_heap)
@@ -102,6 +106,6 @@ def draw_words_from_heap(word_heap, heap_lock):
         # Convert single word-path pair to dictionary format
         words_dict = {prioritized_word.word: prioritized_word.path}
         draw_all_words(words_dict)  # Draw single word
-
+        
 if __name__ == "__main__":
     main() 

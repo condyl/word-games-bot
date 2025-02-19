@@ -1,12 +1,6 @@
-import pyautogui
 import time
 from typing import List, Tuple
 import Quartz
-from Quartz import CoreGraphics as CG  # This is the correct import
-from Quartz import NSEvent
-
-# Disable pyautogui's fail-safe (optional, but can be helpful for testing)
-# pyautogui.FAILSAFE = False
 
 def get_iphone_window():
     """Get the iPhone mirroring window position and dimensions."""
