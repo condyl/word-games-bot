@@ -1,6 +1,7 @@
 from get_game_board import get_game_board
 from word_finder import find_words, print_found_words
 from word_drawer import draw_all_words
+from press_start_button import focus_and_click_start
 import time
 import signal
 import sys
@@ -14,6 +15,14 @@ def main():
     signal.alarm(80)
     
     try:
+        # Focus window and click start
+        if not focus_and_click_start():
+            print("Failed to start game")
+            return
+            
+        # Wait for game to start
+        time.sleep(1)
+        
         # Get the actual game board from screenshot
         board = get_game_board()
         
