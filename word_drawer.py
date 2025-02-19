@@ -23,9 +23,9 @@ def get_iphone_window():
             }
     return None
 
-def get_letter_position(x: int, y: int, board_size: int = 4) -> Tuple[int, int]:
+def get_letter_position(x: int, y: int, game_version: str = "4x4") -> Tuple[int, int]:
     """
-    Convert board coordinates (0-3, 0-3) to screen coordinates.
+    Convert board coordinates to screen coordinates.
     Note: Input coordinates are (row, col) format
     """
     window = get_iphone_window()
@@ -37,14 +37,23 @@ def get_letter_position(x: int, y: int, board_size: int = 4) -> Tuple[int, int]:
     height = window['height']
     
     # Use the exact same margins as get_game_board.py
-    start_y = int(height * 0.47)
-    end_y = int(height * 0.79)
-    start_x = int(width * 0.11)
-    end_x = int(width * 0.89)
+    if game_version == "4x4":
+        start_y = int(height * 0.47)
+        end_y = int(height * 0.79)
+        start_x = int(width * 0.11)
+        end_x = int(width * 0.89)
+    else:  # "X", "O", "5x5"
+        start_y = int(height * 0.44)
+        end_y = int(height * 0.82)
+        start_x = int(width * 0.06)
+        end_x = int(width * 0.94)
     
     # Calculate board dimensions
     board_width = end_x - start_x
     board_height = end_y - start_y
+    
+    # Determine grid size based on game version
+    board_size = 4 if game_version == "4x4" else 5
     
     # Calculate cell size
     cell_width = board_width / board_size
@@ -58,7 +67,7 @@ def get_letter_position(x: int, y: int, board_size: int = 4) -> Tuple[int, int]:
     
     return (int(screen_x), int(screen_y))
 
-def draw_word(path: List[Tuple[int, int]]):
+def draw_word(path: List[Tuple[int, int]], game_version: str = "4x4"):
     """
     Draw a word by dragging the mouse through the given path using Quartz events.
     """
@@ -66,7 +75,7 @@ def draw_word(path: List[Tuple[int, int]]):
         return
     
     # Get start position
-    start_x, start_y = get_letter_position(path[0][0], path[0][1])
+    start_x, start_y = get_letter_position(path[0][0], path[0][1], game_version)
     
     try:
         # Move to start position
@@ -79,7 +88,7 @@ def draw_word(path: List[Tuple[int, int]]):
         
         # Drag through all points
         for i, (x, y) in enumerate(path[1:], 1):
-            screen_x, screen_y = get_letter_position(x, y)
+            screen_x, screen_y = get_letter_position(x, y, game_version)
             drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, (screen_x, screen_y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
             time.sleep(0.06)
@@ -90,7 +99,7 @@ def draw_word(path: List[Tuple[int, int]]):
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
         time.sleep(0.05)
 
-def draw_all_words(words: dict[str, List[Tuple[int, int]]], min_length: int = 3):
+def draw_all_words(words: dict[str, List[Tuple[int, int]]], game_version: str = "4x4", min_length: int = 3):
     """
     Draw all words in the found_words dictionary.
     Draws longer words first (they're worth more points).
@@ -100,5 +109,5 @@ def draw_all_words(words: dict[str, List[Tuple[int, int]]], min_length: int = 3)
     
     for word, path in sorted_words:
         if len(word) >= min_length:
-            print(f"Drawing: {word}")
-            draw_word(path)
+            #print(f"Drawing: {word}")
+            draw_word(path, game_version)

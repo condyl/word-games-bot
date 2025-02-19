@@ -1,4 +1,5 @@
 from get_game_board import get_game_board
+from identify_game_version import identify_game_version
 from word_finder import find_words, print_found_words
 from word_drawer import draw_all_words
 from press_start_button import focus_and_click_start
@@ -40,18 +41,27 @@ def main():
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(80)
         
+        # First identify the game version
+        try:
+            game_version = identify_game_version()
+            print(f"Detected game version: {game_version}")
+            if game_version.startswith('unknown'):
+                print("Failed to identify game version")
+                return
+        except Exception as e:
+            print(f"Failed to identify game version: {str(e)}")
+            return
+        
         # Get the actual game board from screenshot
         try:
-            board = get_game_board()
+            board = get_game_board(game_version)
         except Exception as e:
             print(f"Failed to capture game board: {str(e)}")
             return
-        
         if board:
             print("Game Board:")
             for row in board:
                 print(' '.join(row))
-            
             # Create a priority queue for found words
             word_queue = []  # Will be used as a heap
             word_paths = {}  # Store word->path mapping
@@ -60,10 +70,10 @@ def main():
             # Start a thread for drawing words
             with ThreadPoolExecutor(max_workers=1) as executor:
                 # Submit the drawing task
-                draw_future = executor.submit(draw_words_from_heap, word_queue, heap_lock)
+                draw_future = executor.submit(draw_words_from_heap, word_queue, heap_lock, game_version)
                 
                 # Find and process words
-                for word, path in find_words(board):
+                for word, path in find_words(board, game_version):
                     if word not in word_paths:  # Only process if not already found
                         word_paths[word] = path
                         with heap_lock:
@@ -89,7 +99,7 @@ def main():
         # Cancel the alarm in case we finish early
         signal.alarm(0)
 
-def draw_words_from_heap(word_heap: List[PrioritizedWord], heap_lock: Lock) -> None:
+def draw_words_from_heap(word_heap: List[PrioritizedWord], heap_lock: Lock, game_version: str) -> None:
     """Draw words as they become available in the heap, longest first"""
     while True:
         with heap_lock:
@@ -105,7 +115,7 @@ def draw_words_from_heap(word_heap: List[PrioritizedWord], heap_lock: Lock) -> N
             
         # Convert single word-path pair to dictionary format
         words_dict = {prioritized_word.word: prioritized_word.path}
-        draw_all_words(words_dict)  # Draw single word
+        draw_all_words(words_dict, game_version)  # Pass game_version here
         
 if __name__ == "__main__":
     main() 
