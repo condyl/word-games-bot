@@ -33,29 +33,28 @@ def get_neighbors(x: int, y: int, board_size: int) -> List[Tuple[int, int]]:
                 neighbors.append((new_x, new_y))
     return neighbors
 
-def find_words(board: List[List[str]], min_length: int = 3) -> dict[str, List[Tuple[int, int]]]:
+def find_words(board: List[List[str]], min_length: int = 3):
     """
     Find all valid words in the game board.
-    Returns a dictionary mapping words to their paths on the board.
+    Returns a generator of tuples (word, path) as words are found.
     """
     valid_words = load_word_lists()
-    found_words = {}
     board_size = len(board)
     
     def dfs(x: int, y: int, current_word: str, path: List[Tuple[int, int]], visited: Set[Tuple[int, int]]):
         # Add current letter to word (ensure uppercase for comparison)
         current_word += board[x][y].upper()
         
-        # If word is long enough and valid, add it to found words
+        # If word is long enough and valid, yield it
         if len(current_word) >= min_length and current_word in valid_words:
-            found_words[current_word] = path.copy()
+            yield (current_word, path.copy())
             
         # Explore neighbors
         for next_x, next_y in get_neighbors(x, y, board_size):
             if (next_x, next_y) not in visited:
                 visited.add((next_x, next_y))
                 path.append((next_x, next_y))
-                dfs(next_x, next_y, current_word, path, visited)
+                yield from dfs(next_x, next_y, current_word, path, visited)
                 path.pop()
                 visited.remove((next_x, next_y))
     
@@ -63,9 +62,7 @@ def find_words(board: List[List[str]], min_length: int = 3) -> dict[str, List[Tu
     for x in range(board_size):
         for y in range(board_size):
             visited = {(x, y)}
-            dfs(x, y, "", [(x, y)], visited)
-    
-    return found_words
+            yield from dfs(x, y, "", [(x, y)], visited)
 
 def calculate_score(words: dict[str, List[Tuple[int, int]]]) -> int:
     """Calculate total score based on word lengths."""
