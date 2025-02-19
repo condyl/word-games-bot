@@ -64,7 +64,7 @@ def get_letter_position(x: int, y: int, board_size: int = 4) -> Tuple[int, int]:
     
     return (int(screen_x), int(screen_y))
 
-def draw_word(path: List[Tuple[int, int]], duration: float = 0.3):
+def draw_word(path: List[Tuple[int, int]]):
     """
     Draw a word by dragging the mouse through the given path using Quartz events.
     """
@@ -78,26 +78,23 @@ def draw_word(path: List[Tuple[int, int]], duration: float = 0.3):
         # Move to start position
         move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (start_x, start_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, move)
-        time.sleep(0.1)
         
         # Press mouse down
         down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (start_x, start_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-        time.sleep(0.1) 
         
         # Drag through all points
         for i, (x, y) in enumerate(path[1:], 1):
             screen_x, screen_y = get_letter_position(x, y)
-            
             drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, (screen_x, screen_y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
-            time.sleep(duration/len(path))
+            time.sleep(0.06)
             
     finally:
         # Release at end
         up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (screen_x, screen_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-        time.sleep(0.1)
+        time.sleep(0.05)
 
 def draw_all_words(words: dict[str, List[Tuple[int, int]]], min_length: int = 3):
     """
@@ -106,8 +103,6 @@ def draw_all_words(words: dict[str, List[Tuple[int, int]]], min_length: int = 3)
     """
     # Sort words by length (longest first) and alphabetically
     sorted_words = sorted(words.items(), key=lambda x: (-len(x[0]), x[0]))
-    
-    print("\nDrawing words...")
     
     for word, path in sorted_words:
         if len(word) >= min_length:
