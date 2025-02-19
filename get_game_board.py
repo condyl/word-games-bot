@@ -58,6 +58,36 @@ def find_game_board(image, game_version):
     
     return cropped
 
+def is_likely_P(binary):
+    """Check if a letter might be P based on its shape characteristics"""
+    height, width = binary.shape
+    
+    # Split the image into 3x3 grid and analyze density in each cell
+    h_third = height // 3
+    w_third = width // 3
+    
+    # Get densities for key regions
+    top_right = binary[0:h_third, 2*w_third:]
+    middle_right = binary[h_third:2*h_third, 2*w_third:]
+    bottom_right = binary[2*h_third:, 2*w_third:]
+    
+    # Calculate density for each region
+    top_density = np.sum(top_right == 255) / top_right.size
+    middle_density = np.sum(middle_right == 255) / middle_right.size
+    bottom_density = np.sum(bottom_right == 255) / bottom_right.size
+    
+    # P characteristics:
+    # 1. High density in top right (the curve)
+    # 2. Very low density in bottom right (empty space)
+    # 3. Medium-low density in middle right (transition)
+    # 4. Top density should be much higher than bottom
+    is_p = (top_density > 0.4 and           # Strong curve at top
+            bottom_density < 0.1 and         # Empty at bottom
+            middle_density < 0.2 and         # Gap in middle
+            top_density > bottom_density * 4) # Top much denser than bottom
+    
+    return is_p
+
 def process_cell(cell, row, col, cells_folder=None):
     """Process a single cell to extract its letter"""
     if cell is None or cell.size == 0:
@@ -88,7 +118,7 @@ def process_cell(cell, row, col, cells_folder=None):
                                    cv2.BORDER_CONSTANT, value=0)
         
         # Save the processed cell image if a folder is provided
-        if cells_folder and idx == 0:  # Save only the first method's result
+        if cells_folder and idx == 0:
             cv2.imwrite(f'{cells_folder}/cell_{row}_{col}_processed.png', padded)
         
         # Try OCR with different configurations
@@ -101,6 +131,9 @@ def process_cell(cell, row, col, cells_folder=None):
             text = pytesseract.image_to_string(padded, config=config).strip()
             if text and len(text) > 0:
                 letter = text[0].upper()
+                # Always check for P if the letter could be confused with it
+                if letter in ['D', 'B', 'P', 'R'] and is_likely_P(binary):
+                    return 'P'
                 if letter == 'A' and is_likely_K(binary):
                     return 'K'
                 return letter
