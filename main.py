@@ -28,9 +28,6 @@ def timeout_handler(signum, frame):
     os._exit(0)
 
 def main():
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(90)
-    
     try:
         # Focus window and click start
         if not focus_and_click_start():
@@ -39,6 +36,10 @@ def main():
             
         # Wait for game to start
         time.sleep(1)
+        
+        # Start the 80-second timer now that game has started
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(80)
         
         # Get the actual game board from screenshot
         board = get_game_board()

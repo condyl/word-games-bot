@@ -1,24 +1,16 @@
 from typing import List, Set, Tuple
-import json
 
 def load_word_lists() -> Set[str]:
-    """Load all word lists and combine them into a single set of valid words."""
-    # Add shorter word lengths for testing
-    word_lengths = list(range(3, 17))  # Include all lengths from 3 to 16
+    """Load the filtered Collins word list into a set of valid words."""
     all_words = set()
     
-    # For testing purposes, if we can't load word lists, add our test words
-    test_words = {'SEAT', 'TEA', 'SAT', 'ATE', 'EAT', 'SET', 'SEA'}
-    all_words.update(test_words)
+    try:
+        with open('word_lists/collins-word-list-2019-filtered.txt', 'r', encoding='utf-8') as f:
+            words = f.read().splitlines()
+            all_words.update(w.upper() for w in words)  # Convert to uppercase
+    except FileNotFoundError:
+        raise FileNotFoundError("Could not find word list file. Please ensure 'word_lists/collins-word-list-2019-filtered.txt' exists.")
     
-    for length in word_lengths:
-        try:
-            with open(f'word_lists/{length}-letter-words.json', 'r') as f:
-                words = json.load(f)
-                all_words.update(w.upper() for w in words)  # Convert to uppercase
-        except FileNotFoundError:
-            continue
-            
     return all_words
 
 def get_neighbors(x: int, y: int, board_size: int) -> List[Tuple[int, int]]:
