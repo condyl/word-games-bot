@@ -10,9 +10,8 @@ def timeout_handler(signum, frame):
     sys.exit(0)
 
 def main():
-    # Set 2 minute timeout
     signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(90)  # 120 seconds = 2 minutes
+    signal.alarm(80)
     
     try:
         # Get the actual game board from screenshot

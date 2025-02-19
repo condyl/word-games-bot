@@ -64,39 +64,30 @@ def get_letter_position(x: int, y: int, board_size: int = 4) -> Tuple[int, int]:
     
     return (int(screen_x), int(screen_y))
 
-def draw_word(path: List[Tuple[int, int]], duration: float = 2.0):
+def draw_word(path: List[Tuple[int, int]], duration: float = 0.3):
     """
     Draw a word by dragging the mouse through the given path using Quartz events.
     """
     if not path:
         return
     
-    window = get_iphone_window()
-    print(f"\nWindow info:")
-    print(f"Position: ({window['x']}, {window['y']})")
-    print(f"Size: {window['width']} x {window['height']}")
-    
     # Get start position
     start_x, start_y = get_letter_position(path[0][0], path[0][1])
-    print(f"\nStarting drag operation:")
-    print(f"Initial position: ({start_x}, {start_y})")
     
     try:
         # Move to start position
         move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (start_x, start_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, move)
-        time.sleep(0.5)
+        time.sleep(0.1)
         
         # Press mouse down
-        print("Pressing mouse button")
         down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (start_x, start_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-        time.sleep(0.2)
+        time.sleep(0.1) 
         
         # Drag through all points
         for i, (x, y) in enumerate(path[1:], 1):
             screen_x, screen_y = get_letter_position(x, y)
-            print(f"Dragging to point {i}: ({screen_x}, {screen_y})")
             
             drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, (screen_x, screen_y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
@@ -104,10 +95,9 @@ def draw_word(path: List[Tuple[int, int]], duration: float = 2.0):
             
     finally:
         # Release at end
-        print("Releasing mouse button")
         up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (screen_x, screen_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-        time.sleep(0.3)
+        time.sleep(0.1)
 
 def draw_all_words(words: dict[str, List[Tuple[int, int]]], min_length: int = 3):
     """
@@ -118,13 +108,8 @@ def draw_all_words(words: dict[str, List[Tuple[int, int]]], min_length: int = 3)
     sorted_words = sorted(words.items(), key=lambda x: (-len(x[0]), x[0]))
     
     print("\nDrawing words...")
-    print("Move your mouse to the top-left corner to abort")
-    
-    # Give user time to prepare
-    time.sleep(3)
     
     for word, path in sorted_words:
         if len(word) >= min_length:
             print(f"Drawing: {word}")
             draw_word(path)
-            time.sleep(0.2)  # Pause between words 
