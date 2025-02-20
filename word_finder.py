@@ -54,14 +54,12 @@ def find_words(board: List[List[str]], game_version: str = "4x4", min_length: in
         return word in prefixes or word in valid_words
     
     def dfs(x: int, y: int, current_word: str, path: List[Tuple[int, int]], visited: Set[Tuple[int, int]]):
-        # Add current letter to word (ensure uppercase for comparison)
         current_word += board[x][y].upper()
         
         # Early termination if this prefix isn't valid
         if not is_valid_prefix(current_word):
             return
         
-        # If word is long enough and valid, yield it
         if len(current_word) >= min_length and current_word in valid_words:
             yield (current_word, path.copy())
         

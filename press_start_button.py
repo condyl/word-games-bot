@@ -27,14 +27,14 @@ def focus_and_click_start():
         print("iPhone window not found")
         return False
         
-    # Calculate position
+    # Calculate position for both game types
     target_x_word_hunt = window['x'] + (window['width'] / 2)
     target_y_word_hunt = window['y'] + (window['height'] * 0.71)
     target_x_anagrams = window['x'] + (window['width'] / 2)
     target_y_anagrams = window['y'] + (window['height'] * 0.66)
+
     # First click might focus the window, second click starts the game
     for i in range(2):
-        # Move
         move = Quartz.CGEventCreateMouseEvent(
             None,
             Quartz.kCGEventMouseMoved,

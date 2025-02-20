@@ -47,15 +47,12 @@ def main():
         START_TIME = time.time()
         words_found = 0
         
-        # Focus window and click start
         if not focus_and_click_start():
             print("Failed to start game")
             return
             
-        # Wait for game to start
         time.sleep(1)
         
-        # Start the 80-second timer
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(80)
         
@@ -84,14 +81,11 @@ def main():
 
             # Handle differently based on game type
             if game_version.startswith('ANAGRAM'):
-                # For anagrams, find words and click them one by one
                 found_words = find_anagrams(board, min_length=3)
                 words_found = len(found_words)
                 
-                # Sort words by length (longest first) and alphabetically
                 sorted_words = sorted(found_words.keys(), key=lambda x: (-len(x), x))
                 
-                # Click each word
                 for word in sorted_words:
                     click_anagram_word(word, board, game_version)
                     time.sleep(0.1)  # Small delay between words

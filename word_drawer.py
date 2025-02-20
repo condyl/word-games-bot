@@ -113,19 +113,15 @@ def draw_word(path: List[Tuple[int, int]], game_version: str = "4x4"):
     if not path:
         return
     
-    # Get start position
     start_x, start_y = get_letter_position(path[0][0], path[0][1], game_version)
     
     try:
-        # Move to start position
         move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (start_x, start_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, move)
         
-        # Press mouse down
         down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (start_x, start_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
         
-        # Drag through all points with minimal delay
         for i, (x, y) in enumerate(path[1:], 1):
             screen_x, screen_y = get_letter_position(x, y, game_version)
             drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, (screen_x, screen_y), 0)
