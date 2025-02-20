@@ -1,7 +1,7 @@
 from get_game_board import get_game_board
 from identify_game_version import identify_game_version
-from word_finder import find_words, print_found_words
-from word_drawer import draw_word
+from word_finder import find_words, find_anagrams, print_found_words, print_anagram_words
+from word_drawer import draw_word, click_anagram_word
 from press_start_button import focus_and_click_start
 import time
 import signal
@@ -14,7 +14,7 @@ from threading import Lock
 
 WORDS_FOUND = 0
 GAME_VERSION = "unknown"
-TIME_REMAINING = 80  # Track time remaining
+TIME_REMAINING = 90  # Track time remaining
 START_TIME = 0  # Track start time globally
 
 @dataclass(order=True)
@@ -44,8 +44,8 @@ def update_time_remaining():
 def main():
     try:
         global START_TIME
-        START_TIME = time.time()  # Track start time globally
-        words_found = 0  # Add counter for words found
+        START_TIME = time.time()
+        words_found = 0
         
         # Focus window and click start
         if not focus_and_click_start():
@@ -55,7 +55,7 @@ def main():
         # Wait for game to start
         time.sleep(1)
         
-        # Start the 80-second timer now that game has started
+        # Start the 80-second timer
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(80)
         
@@ -76,51 +76,62 @@ def main():
         except Exception as e:
             print(f"Failed to capture game board: {str(e)}")
             return
+
         if board:
             print("Game Board:")
             for row in board:
                 print(' '.join(row))
-            # Create a priority queue for found words
-            word_queue = []  # Will be used as a heap
-            word_paths = {}  # Store word->path mapping
-            heap_lock = Lock()
+
+            # Handle differently based on game type
+            if game_version.startswith('ANAGRAM'):
+                # For anagrams, find words and click them one by one
+                found_words = find_anagrams(board, min_length=3)
+                words_found = len(found_words)
+                
+                # Sort words by length (longest first) and alphabetically
+                sorted_words = sorted(found_words.keys(), key=lambda x: (-len(x), x))
+                
+                # Click each word
+                for word in sorted_words:
+                    click_anagram_word(word, board, game_version)
+                    time.sleep(0.1)  # Small delay between words
+                
+                print_anagram_words(found_words)
+            else:
+                # For word hunt games, use existing drawing logic
+                word_queue = []
+                word_paths = {}
+                heap_lock = Lock()
+                
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    draw_future = executor.submit(draw_words_from_heap, word_queue, heap_lock, game_version)
+                    
+                    for word, path in find_words(board, game_version):
+                        if word not in word_paths:
+                            word_paths[word] = path
+                            words_found += 1
+                            with heap_lock:
+                                heapq.heappush(word_queue, PrioritizedWord(word, path))
+                    
+                    with heap_lock:
+                        heapq.heappush(word_queue, PrioritizedWord("", []))  # Sentinel value
+                    
+                    draw_future.result()
+                
+                print_found_words(word_paths)
             
-            # Start a thread for drawing words
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                # Submit the drawing task
-                draw_future = executor.submit(draw_words_from_heap, word_queue, heap_lock, game_version)
-                
-                # Find and process words
-                for word, path in find_words(board, game_version):
-                    if word not in word_paths:  # Only process if not already found
-                        word_paths[word] = path
-                        words_found += 1  # Increment counter
-                        with heap_lock:
-                            heapq.heappush(word_queue, PrioritizedWord(word, path))
-                
-                # Update global variables for timeout handler to access
-                global WORDS_FOUND, GAME_VERSION
-                WORDS_FOUND = words_found
-                GAME_VERSION = game_version
-                
-                # Signal that we're done finding words
-                with heap_lock:
-                    heapq.heappush(word_queue, PrioritizedWord("", []))  # Sentinel value
-                
-                # Wait for drawing to complete
-                draw_future.result()
-            
-            # Print final results
-            print_found_words(word_paths)
+            # Update global variables for timeout handler
+            global WORDS_FOUND, GAME_VERSION
+            WORDS_FOUND = words_found
+            GAME_VERSION = game_version
             
         else:
             print("Failed to get game board")
             
     except KeyboardInterrupt:
         print("\nProgram interrupted by user")
-        os._exit(0)  # Force exit all threads on interrupt
+        os._exit(0)
     finally:
-        # Cancel the alarm in case we finish early
         signal.alarm(0)
 
 def draw_words_from_heap(word_heap: List[PrioritizedWord], heap_lock: Lock, game_version: str) -> None:

@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 import pytesseract
 import os
+import argparse
 
 def find_iphone_window():
     # List of possible window title keywords for iPhone mirroring
@@ -37,18 +38,32 @@ def find_game_board(image, game_version):
     opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
     height, width = opencv_image.shape[:2]
     
+    # Define cropping dimensions based on game version
     if game_version == "4x4":
         # Original 4x4 dimensions
         start_y = int(height * 0.47)
         end_y = int(height * 0.79)
         start_x = int(width * 0.11)
         end_x = int(width * 0.89)
-    else:  # Handles "X", "O", and "5x5" versions
+    elif game_version in ["X", "O", "5x5"]:
         # Larger dimensions for 5x5 grid variants
         start_y = int(height * 0.45)
         end_y = int(height * 0.81)  
         start_x = int(width * 0.06)
-        end_x = int(width * 0.94)     
+        end_x = int(width * 0.94)
+    elif game_version.startswith("ANAGRAM"):
+        start_y = int(height * 0.80)
+        end_y = int(height * 0.85)
+        if game_version == "ANAGRAM7":
+            start_y = int(height * 0.80)
+            end_y = int(height * 0.845)  # Slightly less height to add bottom padding
+            start_x = int(width * 0.02)  # More padding on left
+            end_x = int(width * 0.98)    # More padding on right
+        else:  # ANAGRAM6
+            start_x = int(width * 0.03)
+            end_x = int(width * 0.97)
+    else:
+        raise ValueError(f"Unsupported game version: {game_version}")
     
     cropped = opencv_image[start_y:end_y, start_x:end_x]
     
@@ -229,12 +244,34 @@ def get_game_board(game_version="4x4"):
     move_mouse_away(window_bounds)
     time.sleep(0.1)  # Small delay to ensure mouse has moved
     
-    # Capture screenshot using Quartz (macOS)
-    padding = 20
-    x = int(window_bounds['X']) + padding
-    y = int(window_bounds['Y']) + padding
-    width = int(window_bounds['Width']) - (2 * padding)
-    height = int(window_bounds['Height']) - (2 * padding)
+    # Set padding based on game version
+    padding = 0 if game_version.startswith("ANAGRAM") else 20
+    
+    # For anagram modes, adjust the capture region to maintain aspect ratio
+    if game_version.startswith("ANAGRAM"):
+        # Calculate aspect ratio of iPhone screen (typically 9:19.5)
+        aspect_ratio = 9/19.5
+        
+        # Get window dimensions
+        window_width = int(window_bounds['Width'])
+        window_height = int(window_bounds['Height'])
+        
+        # Adjust capture region to maintain aspect ratio
+        target_height = window_height
+        target_width = int(target_height * aspect_ratio)
+        
+        # Center the capture region
+        x_offset = (window_width - target_width) // 2
+        x = int(window_bounds['X']) + x_offset
+        y = int(window_bounds['Y'])
+        width = target_width
+        height = target_height
+    else:
+        # Normal padding-based capture for non-anagram modes
+        x = int(window_bounds['X']) + padding
+        y = int(window_bounds['Y']) + padding
+        width = int(window_bounds['Width']) - (2 * padding)
+        height = int(window_bounds['Height']) - (2 * padding)
     
     # Create CGImage
     region = Quartz.CGRectMake(x, y, width, height)
@@ -254,6 +291,17 @@ def get_game_board(game_version="4x4"):
     import PIL.Image
     screenshot = PIL.Image.frombytes('RGBA', (width, height), pixeldata, 'raw', 'BGRA')
     
+    # If it's an anagram mode, crop out the padding after capturing
+    if game_version.startswith("ANAGRAM"):
+        # Remove padding from all sides
+        crop_box = (
+            padding,  # left
+            padding,  # top
+            width - padding,  # right
+            height - padding  # bottom
+        )
+        screenshot = screenshot.crop(crop_box)
+    
     # Find and crop game board
     board_image = find_game_board(screenshot, game_version)
     if board_image is None:
@@ -267,52 +315,130 @@ def get_game_board(game_version="4x4"):
     height, width = board_image.shape[:2]
     print(f"\nProcessing {game_version} board ({width}x{height})")
     
-    # Determine grid size based on game version
-    grid_size = 4 if game_version == "4x4" else 5
-    cell_height = height // grid_size
-    cell_width = width // grid_size
-    print(f"Grid size: {grid_size}x{grid_size}")
-    print(f"Cell dimensions: {cell_width}x{cell_height}")
-    
-    # Define empty cells for X and O versions
-    empty_cells = set()
-    if game_version == "X":
-        empty_cells = {(2,0), (0,2), (4,2), (2,4)}
-    elif game_version == "O":
-        empty_cells = {(0,0), (0,4), (2,2), (4,0), (4,4)}
-    
-    # Create timestamped folder for this board's cells
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    cells_folder = f'debug/cells_{timestamp}'
-    if not os.path.exists(cells_folder):
-        os.makedirs(cells_folder)
-    
-    # Process each cell
-    grid = []
-    for i in range(grid_size):
+    # Handle anagram modes differently
+    if game_version.startswith("ANAGRAM"):
+        # For anagrams, we'll process as a single row
+        num_letters = 6 if game_version == "ANAGRAM6" else 7
+        cell_width = width // num_letters
+        
+        # Add padding for better letter separation
+        if game_version == "ANAGRAM7":
+            h_padding = int(cell_width * 0.20)  # 20% horizontal padding for ANAGRAM7
+            v_padding = 2  # 2 pixels vertical padding
+        else:  # ANAGRAM6
+            h_padding = int(cell_width * 0.15)  # 15% horizontal padding
+            v_padding = 0  # No vertical padding
+        
+        # Create a single row for anagram letters
         row = []
-        for j in range(grid_size):
-            if (i,j) in empty_cells:
-                row.append(' ')  # or whatever character you want to use for empty cells
-                continue
-                
+        for j in range(num_letters):
             x = j * cell_width
-            y = i * cell_height
-            # Increase margins to 20 pixels
-            margin = 16
-            cell = board_image[y+margin:y+cell_height-margin, x+margin:x+cell_width-margin]
+            # Apply padding to each cell
+            cell = board_image[v_padding:height-v_padding, x+h_padding:x+cell_width-h_padding]
             
             # Save the cell with margins
-            cv2.imwrite(f'{cells_folder}/cell_{i}_{j}_margins.png', cell)
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            cells_folder = f'debug/cells_{timestamp}'
+            if not os.path.exists(cells_folder):
+                os.makedirs(cells_folder)
+            cv2.imwrite(f'{cells_folder}/cell_0_{j}_margins.png', cell)
             
             # Process the cell
-            letter = process_cell(cell, i, j, cells_folder)
+            letter = process_cell(cell, 0, j, cells_folder)
             row.append(letter)
-        grid.append(row)
+        
+        return [row]  # Return as a single-row grid for consistency
     
-    # Print final grid
-    print("\nFinal grid:")
-    for row in grid:
-        print(' '.join(row))
+    # Original grid processing for non-anagram modes
+    else:
+        # Define empty cells for X and O versions
+        empty_cells = set()
+        if game_version == "X":
+            empty_cells = {(2,0), (0,2), (4,2), (2,4)}
+        elif game_version == "O":
+            empty_cells = {(0,0), (0,4), (2,2), (4,0), (4,4)}
+        
+        # Create timestamped folder for this board's cells
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        cells_folder = f'debug/cells_{timestamp}'
+        if not os.path.exists(cells_folder):
+            os.makedirs(cells_folder)
+        
+        # Determine grid size based on game version
+        if game_version == "4x4":
+            grid_size = 4
+        elif game_version in ["X", "O", "5x5"]:
+            grid_size = 5
+        else:
+            raise ValueError(f"Unsupported game version: {game_version}")
+            
+        cell_height = height // grid_size
+        cell_width = width // grid_size
+        print(f"Grid size: {grid_size}x{grid_size}")
+        print(f"Cell dimensions: {cell_width}x{cell_height}")
+        
+        # Process each cell
+        grid = []
+        for i in range(grid_size):
+            row = []
+            for j in range(grid_size):
+                if (i,j) in empty_cells:
+                    row.append(' ')  # or whatever character you want to use for empty cells
+                    continue
+                    
+                x = j * cell_width
+                y = i * cell_height
+                # Increase margins to 20 pixels
+                margin = 16
+                cell = board_image[y+margin:y+cell_height-margin, x+margin:x+cell_width-margin]
+                
+                # Save the cell with margins
+                cv2.imwrite(f'{cells_folder}/cell_{i}_{j}_margins.png', cell)
+                
+                # Process the cell
+                letter = process_cell(cell, i, j, cells_folder)
+                row.append(letter)
+            grid.append(row)
+        
+        # Print final grid
+        print("\nFinal grid:")
+        for row in grid:
+            print(' '.join(row))
+        
+        return grid
+
+if __name__ == "__main__":
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='Debug game board detection')
+    parser.add_argument('--version', type=str, default="4x4",
+                      help='Game version (4x4, 5x5, X, O, ANAGRAM6, ANAGRAM7)')
+    parser.add_argument('--continuous', action='store_true',
+                      help='Continuously capture boards until interrupted')
     
-    return grid
+    args = parser.parse_args()
+    
+    def run_detection():
+        print(f"\nDetecting game board for version: {args.version}")
+        board = get_game_board(args.version)
+        
+        if board is None:
+            print("Failed to detect game board - is the iPhone window visible?")
+            return
+        
+        print("\nDetected board:")
+        for row in board:
+            print(' '.join(row))
+        print("\nCheck the debug folder for captured images")
+    
+    try:
+        if args.continuous:
+            print("Press Ctrl+C to stop continuous detection")
+            while True:
+                run_detection()
+                time.sleep(2)  # Wait 2 seconds between captures
+        else:
+            run_detection()
+    except KeyboardInterrupt:
+        print("\nDetection stopped by user")
+    except Exception as e:
+        print(f"\nError occurred: {e}")
