@@ -1,7 +1,7 @@
 from get_game_board import get_game_board
 from identify_game_version import identify_game_version
 from word_finder import find_words, find_anagrams, print_found_words, print_anagram_words
-from word_drawer import draw_word
+from word_drawer import draw_word, click_anagram_word
 from press_start_button import focus_and_click_start
 import time
 import signal
@@ -84,9 +84,18 @@ def main():
 
             # Handle differently based on game type
             if game_version.startswith('ANAGRAM'):
-                # For anagrams, just find and print words
+                # For anagrams, find words and click them one by one
                 found_words = find_anagrams(board, min_length=3)
                 words_found = len(found_words)
+                
+                # Sort words by length (longest first) and alphabetically
+                sorted_words = sorted(found_words.keys(), key=lambda x: (-len(x), x))
+                
+                # Click each word
+                for word in sorted_words:
+                    click_anagram_word(word, board, game_version)
+                    time.sleep(0.1)  # Small delay between words
+                
                 print_anagram_words(found_words)
             else:
                 # For word hunt games, use existing drawing logic
