@@ -62,29 +62,54 @@ def is_likely_P(binary):
     """Check if a letter might be P based on its shape characteristics"""
     height, width = binary.shape
     
-    # Split the image into 3x3 grid and analyze density in each cell
+    # Split the image into more detailed regions
     h_third = height // 3
     w_third = width // 3
     
-    # Get densities for key regions
+    # Get regions for analysis
+    left_col = binary[:, :w_third]
     top_right = binary[0:h_third, 2*w_third:]
     middle_right = binary[h_third:2*h_third, 2*w_third:]
     bottom_right = binary[2*h_third:, 2*w_third:]
+    top_half = binary[:height//2, :]
+    bottom_half = binary[height//2:, :]
     
-    # Calculate density for each region
+    # Calculate densities
+    left_density = np.sum(left_col == 255) / left_col.size
     top_density = np.sum(top_right == 255) / top_right.size
     middle_density = np.sum(middle_right == 255) / middle_right.size
     bottom_density = np.sum(bottom_right == 255) / bottom_right.size
+    top_half_density = np.sum(top_half == 255) / top_half.size
+    bottom_half_density = np.sum(bottom_half == 255) / bottom_half.size
     
-    # P characteristics:
-    # 1. High density in top right (the curve)
-    # 2. Very low density in bottom right (empty space)
-    # 3. Medium-low density in middle right (transition)
-    # 4. Top density should be much higher than bottom
-    is_p = (top_density > 0.4 and           # Strong curve at top
-            bottom_density < 0.1 and         # Empty at bottom
-            middle_density < 0.2 and         # Gap in middle
-            top_density > bottom_density * 4) # Top much denser than bottom
+    # Key characteristics of P:
+    # 1. Strong vertical line on the left
+    has_left_line = left_density > 0.5
+    
+    # 2. Curved part at top right
+    has_top_curve = top_density > 0.3
+    
+    # 3. Very empty bottom right
+    has_empty_bottom = bottom_density < 0.15
+    
+    # 4. Gap in middle right (where curve ends)
+    has_middle_gap = middle_density < 0.25
+    
+    # 5. Top half should be significantly denser than bottom half
+    top_bottom_ratio = top_half_density / bottom_half_density if bottom_half_density > 0 else float('inf')
+    has_density_difference = top_bottom_ratio > 1.3
+    
+    # 6. Bottom right should be much emptier than top right
+    top_bottom_right_ratio = top_density / bottom_density if bottom_density > 0 else float('inf')
+    has_right_side_difference = top_bottom_right_ratio > 2.5
+    
+    # Combine all characteristics
+    is_p = (has_left_line and 
+            has_top_curve and 
+            has_empty_bottom and 
+            has_middle_gap and 
+            has_density_difference and 
+            has_right_side_difference)
     
     return is_p
 
@@ -132,7 +157,7 @@ def process_cell(cell, row, col, cells_folder=None):
             if text and len(text) > 0:
                 letter = text[0].upper()
                 # Always check for P if the letter could be confused with it
-                if letter in ['D', 'B', 'P', 'R'] and is_likely_P(binary):
+                if letter in ['D', 'B', 'P', 'R', 'E', 'F'] and is_likely_P(binary):
                     return 'P'
                 if letter == 'A' and is_likely_K(binary):
                     return 'K'
