@@ -28,6 +28,10 @@ def find_iphone_window():
     return None
 
 def identify_game_version():
+    # Create debug directory if it doesn't exist
+    if not os.path.exists('debug'):
+        os.makedirs('debug')
+    
     window_bounds = find_iphone_window()
     if not window_bounds:
         return None
@@ -61,38 +65,64 @@ def identify_game_version():
     import PIL.Image
     screenshot = PIL.Image.frombytes('RGBA', (width, height), pixeldata, 'raw', 'BGRA')
     
-    # Convert to OpenCV format
+    # Convert to OpenCV format and HSV
     opencv_image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-    
-    # Convert to HSV
     hsv = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2HSV)
     
-    # Create green mask
+    # Create masks for both green and purple
     lower_green = np.array([40, 40, 40])
     upper_green = np.array([80, 255, 255])
+    lower_purple = np.array([120, 20, 40])
+    upper_purple = np.array([150, 100, 255])
+    
     green_mask = cv2.inRange(hsv, lower_green, upper_green)
+    purple_mask = cv2.inRange(hsv, lower_purple, upper_purple)
     
-    # Crop green mask to bottom 60%
-    height = green_mask.shape[0]
-    crop_start = int(height * 0.4)  # Start at 40% from top
-    green_mask = green_mask[crop_start:, :]  # Crop from 40% to bottom
+    # Check which color has more pixels
+    green_pixels = np.sum(green_mask > 0)
+    purple_pixels = np.sum(purple_mask > 0)
     
-    # Count black regions (cells)
-    inverted_mask = cv2.bitwise_not(green_mask)
-    num_labels, _, _, _ = cv2.connectedComponentsWithStats(inverted_mask)
-    num_cells = num_labels - 1  # Subtract 1 because it includes the background
+    # Choose the dominant color mask
+    is_anagram = purple_pixels > green_pixels
+    active_mask = purple_mask if is_anagram else green_mask
     
-    # Identify the pattern based on number of cells
-    if num_cells == 16:
-        return '4x4'
-    elif num_cells == 20:
-        return 'O'
-    elif num_cells == 21:
-        return 'X'
-    elif num_cells == 25:
-        return '5x5'
+    # Crop and process mask
+    height = active_mask.shape[0]
+    if is_anagram:
+        crop_start = int(height * 0.6)
+        cropped_mask = active_mask[crop_start:, :]
+        _, cropped_mask = cv2.threshold(cropped_mask, 127, 255, cv2.THRESH_BINARY)
+        kernel = np.ones((5,5), np.uint8)
+        cropped_mask = cv2.morphologyEx(cropped_mask, cv2.MORPH_CLOSE, kernel)
+        cropped_mask = cv2.morphologyEx(cropped_mask, cv2.MORPH_OPEN, kernel)
     else:
-        return f'unknown ({num_cells} cells)'
+        crop_start = int(height * 0.4)
+        cropped_mask = active_mask[crop_start:, :]
+    
+    # Count cells
+    inverted_mask = cv2.bitwise_not(cropped_mask)
+    num_labels, _, _, _ = cv2.connectedComponentsWithStats(inverted_mask)
+    num_cells = num_labels - 1
+    
+    # Identify the pattern
+    if is_anagram:
+        if num_cells == 6:
+            return 'ANAGRAM6'
+        elif num_cells == 7:
+            return 'ANAGRAM7'
+        else:
+            return f'unknown_anagram ({num_cells} cells)'
+    else:
+        if num_cells == 16:
+            return '4x4'
+        elif num_cells == 20:
+            return 'O'
+        elif num_cells == 21:
+            return 'X'
+        elif num_cells == 25:
+            return '5x5'
+        else:
+            return f'unknown_wordhunt ({num_cells} cells)'
 
 def test_identification(image_path):
     """
