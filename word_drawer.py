@@ -68,9 +68,7 @@ def get_letter_position(x: int, y: int, game_version: str = "4x4") -> Tuple[int,
     return (int(screen_x), int(screen_y))
 
 def draw_word(path: List[Tuple[int, int]], game_version: str = "4x4"):
-    """
-    Draw a word by dragging the mouse through the given path using Quartz events.
-    """
+    """Draw a word by dragging the mouse through the given path."""
     if not path:
         return
     
@@ -86,20 +84,20 @@ def draw_word(path: List[Tuple[int, int]], game_version: str = "4x4"):
         down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (start_x, start_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
         
-        # Drag through all points
+        # Drag through all points with minimal delay
         for i, (x, y) in enumerate(path[1:], 1):
             screen_x, screen_y = get_letter_position(x, y, game_version)
             drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, (screen_x, screen_y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
-            time.sleep(0.06)
+            time.sleep(0.02)  # Minimum reliable delay
             
     finally:
         # Release at end
         up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (screen_x, screen_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-        time.sleep(0.05)
+        time.sleep(0.02)  # Minimum reliable delay
 
-def draw_all_words(words: dict[str, List[Tuple[int, int]]], game_version: str = "4x4", min_length: int = 3):
+def draw_all_words(words: dict[str, List[Tuple[int, int]]], game_version: str = "4x4"):
     """
     Draw all words in the found_words dictionary.
     Draws longer words first (they're worth more points).
@@ -108,6 +106,4 @@ def draw_all_words(words: dict[str, List[Tuple[int, int]]], game_version: str = 
     sorted_words = sorted(words.items(), key=lambda x: (-len(x[0]), x[0]))
     
     for word, path in sorted_words:
-        if len(word) >= min_length:
-            #print(f"Drawing: {word}")
-            draw_word(path, game_version)
+        draw_word(path, game_version)

@@ -45,8 +45,8 @@ def find_game_board(image, game_version):
         end_x = int(width * 0.89)
     else:  # Handles "X", "O", and "5x5" versions
         # Larger dimensions for 5x5 grid variants
-        start_y = int(height * 0.44)
-        end_y = int(height * 0.82)  
+        start_y = int(height * 0.45)
+        end_y = int(height * 0.81)  
         start_x = int(width * 0.06)
         end_x = int(width * 0.94)     
     

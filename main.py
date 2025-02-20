@@ -1,7 +1,7 @@
 from get_game_board import get_game_board
 from identify_game_version import identify_game_version
 from word_finder import find_words, print_found_words
-from word_drawer import draw_all_words
+from word_drawer import draw_word
 from press_start_button import focus_and_click_start
 import time
 import signal
@@ -14,6 +14,8 @@ from threading import Lock
 
 WORDS_FOUND = 0
 GAME_VERSION = "unknown"
+TIME_REMAINING = 80  # Track time remaining
+START_TIME = 0  # Track start time globally
 
 @dataclass(order=True)
 class PrioritizedWord:
@@ -35,9 +37,14 @@ def timeout_handler(signum, frame):
     print("Program terminated.")
     os._exit(0)
 
+def update_time_remaining():
+    global TIME_REMAINING
+    TIME_REMAINING = max(0, 80 - (time.time() - START_TIME))
+
 def main():
     try:
-        start_time = time.time()  # Add this to track time
+        global START_TIME
+        START_TIME = time.time()  # Track start time globally
         words_found = 0  # Add counter for words found
         
         # Focus window and click start
@@ -127,12 +134,11 @@ def draw_words_from_heap(word_heap: List[PrioritizedWord], heap_lock: Lock, game
             prioritized_word = heapq.heappop(word_heap)
         
         # Check for sentinel value
-        if not prioritized_word.path:  # Empty path means sentinel
+        if not prioritized_word.path:
             break
             
-        # Convert single word-path pair to dictionary format
-        words_dict = {prioritized_word.word: prioritized_word.path}
-        draw_all_words(words_dict, game_version)  # Pass game_version here
-        
+        # Draw the word directly
+        draw_word(prioritized_word.path, game_version)
+
 if __name__ == "__main__":
     main() 
