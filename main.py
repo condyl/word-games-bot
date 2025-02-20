@@ -14,7 +14,7 @@ from threading import Lock
 
 WORDS_FOUND = 0
 GAME_VERSION = "unknown"
-TIME_REMAINING = 80  # Track time remaining
+TIME_REMAINING = 90  # Track time remaining
 START_TIME = 0  # Track start time globally
 
 @dataclass(order=True)
