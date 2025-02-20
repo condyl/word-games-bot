@@ -177,12 +177,33 @@ def is_likely_K(binary):
     return (has_vertical and has_intersection and 
             has_balanced_diagonals and has_middle_gap)
 
+def move_mouse_away(window_bounds):
+    """Move mouse just above the game board"""
+    # Get window position
+    window_x = window_bounds['X']
+    window_y = window_bounds['Y']
+    window_height = window_bounds['Height']
+    window_width = window_bounds['Width']
+    
+    # Calculate position just above the game board
+    # Using same ratios as board detection but slightly higher
+    target_y = window_y + (window_height * 0.35)  # Above the 0.45 start_y of board
+    target_x = window_x + (window_width * 0.5)    # Center horizontally
+    
+    # Move mouse to target position
+    move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (target_x, target_y), 0)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, move)
+
 def get_game_board(game_version="4x4"):
     """Returns the current game board as a 2D list of letters"""
     window_bounds = find_iphone_window()
     if not window_bounds:
         return None
         
+    # Move mouse away before taking screenshot
+    move_mouse_away(window_bounds)
+    time.sleep(0.1)  # Small delay to ensure mouse has moved
+    
     # Capture screenshot using Quartz (macOS)
     padding = 20
     x = int(window_bounds['X']) + padding
