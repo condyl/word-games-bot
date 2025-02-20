@@ -12,6 +12,9 @@ from typing import Tuple, List
 import os
 from threading import Lock
 
+WORDS_FOUND = 0
+GAME_VERSION = "unknown"
+
 @dataclass(order=True)
 class PrioritizedWord:
     priority: int
@@ -24,11 +27,19 @@ class PrioritizedWord:
         self.path = path
 
 def timeout_handler(signum, frame):
-    print("\nTime's up! Exiting program...")
+    print("\nTime's up! Game summary:")
+    print("------------------------")
+    print(f"Game version: {GAME_VERSION}")
+    print(f"Words found: {WORDS_FOUND}")
+    print(f"Time played: 80 seconds")
+    print("Program terminated.")
     os._exit(0)
 
 def main():
     try:
+        start_time = time.time()  # Add this to track time
+        words_found = 0  # Add counter for words found
+        
         # Focus window and click start
         if not focus_and_click_start():
             print("Failed to start game")
@@ -76,8 +87,14 @@ def main():
                 for word, path in find_words(board, game_version):
                     if word not in word_paths:  # Only process if not already found
                         word_paths[word] = path
+                        words_found += 1  # Increment counter
                         with heap_lock:
                             heapq.heappush(word_queue, PrioritizedWord(word, path))
+                
+                # Update global variables for timeout handler to access
+                global WORDS_FOUND, GAME_VERSION
+                WORDS_FOUND = words_found
+                GAME_VERSION = game_version
                 
                 # Signal that we're done finding words
                 with heap_lock:
