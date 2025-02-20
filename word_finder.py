@@ -122,4 +122,58 @@ def print_found_words(words: dict[str, List[Tuple[int, int]]]):
         print(f"{word} {words[word]}")
     
     print(f"\nTotal words found: {len(words)}")
+    print(f"Total score: {calculate_score(words)}")
+
+def find_anagrams(board: List[List[str]], min_length: int = 3) -> dict[str, str]:
+    """
+    Find all valid words that can be made from the given letters.
+    Args:
+        board: Single-row grid of letters from get_game_board
+        min_length: Minimum word length to consider
+    Returns:
+        Dictionary mapping found words to the letters used
+    """
+    valid_words = load_word_lists()
+    
+    # For anagrams, we expect a single row of letters
+    if len(board) != 1:
+        raise ValueError("Anagram board should be a single row of letters")
+        
+    # Convert board row to string of letters
+    letters = ''.join(board[0]).replace(' ', '').upper()
+    
+    letter_counts = {}
+    for letter in letters:
+        letter_counts[letter] = letter_counts.get(letter, 0) + 1
+    
+    found_words = {}
+    
+    def can_make_word(word: str) -> bool:
+        word_counts = {}
+        for letter in word:
+            word_counts[letter] = word_counts.get(letter, 0) + 1
+            if word_counts[letter] > letter_counts.get(letter, 0):
+                return False
+        return True
+    
+    for word in valid_words:
+        if len(word) >= min_length and len(word) <= len(letters):
+            if can_make_word(word):
+                found_words[word] = letters
+    
+    return found_words
+
+def print_anagram_words(words: dict[str, str]):
+    """Print found anagram words sorted by length and alphabetically."""
+    sorted_words = sorted(words.keys(), key=lambda x: (len(x), x))
+    
+    print("\nFound Anagram Words:")
+    current_length = 0
+    for word in sorted_words:
+        if len(word) != current_length:
+            current_length = len(word)
+            print(f"\n{current_length} letters:")
+        print(word)
+    
+    print(f"\nTotal words found: {len(words)}")
     print(f"Total score: {calculate_score(words)}") 
