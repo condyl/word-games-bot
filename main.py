@@ -1,6 +1,6 @@
 from get_game_board import get_game_board
 from identify_game_version import identify_game_version
-from word_finder import find_words, find_anagrams, print_found_words, print_anagram_words
+from word_finder import find_words, find_anagrams, print_found_words, print_anagram_words, find_word_bites_words, print_word_bites_moves
 from word_drawer import draw_word, click_anagram_word
 from press_start_button import focus_and_click_start
 import time
@@ -79,12 +79,18 @@ def main():
             print("Game Board:")
             if game_version == "WORD_BITES":
                 print(board)  # Use the board's string representation
-            else:
-                for row in board:
-                    print(' '.join(row))
-
-            # Handle differently based on game type
-            if game_version.startswith('ANAGRAM'):
+                # Find all possible words and their moves
+                moves = find_word_bites_words(board)
+                words_found = len(moves)
+                
+                # Print all found words and their required moves
+                print_word_bites_moves(moves)
+                
+                # TODO: Implement actual block moving
+                print("\nNote: Automatic block moving not yet implemented")
+                print("Please move blocks manually according to the instructions above")
+                
+            elif game_version.startswith('ANAGRAM'):
                 found_words = find_anagrams(board, min_length=3)
                 words_found = len(found_words)
                 

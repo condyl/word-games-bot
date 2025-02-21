@@ -1,5 +1,8 @@
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Dict, Optional
 from config import WORD_SCORES, WORD_LIST_PATH  # Add imports from config
+from word_bites_board import WordBitesBoard, Block, BlockType
+from dataclasses import dataclass
+from copy import deepcopy
 
 # Cache for prefix sets
 _prefix_cache = {}
@@ -182,4 +185,145 @@ def print_anagram_words(words: dict[str, str]):
         print(word)
     
     print(f"\nTotal words found: {len(words)}")
-    print(f"Total score: {calculate_score(words)}") 
+    print(f"Total score: {calculate_score(words)}")
+
+@dataclass
+class WordBitesMove:
+    """Represents a move in Word Bites - which blocks to move where to form a word"""
+    word: str
+    block_moves: List[Tuple[Block, Tuple[int, int]]]  # List of (block, target_position) pairs
+    score: int = 0
+
+    def __post_init__(self):
+        # Calculate score based on word length
+        length = len(self.word)
+        if length in WORD_SCORES:
+            self.score = WORD_SCORES[length]
+        else:
+            self.score = 400 * (length - 2)  # Standard scoring formula for longer words
+
+def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[WordBitesMove]:
+    """
+    Find all possible words that can be made in Word Bites by moving blocks around.
+    Only keeps one combination per word (first one found) since points can only be earned once.
+    Args:
+        board: The Word Bites board
+        min_length: Minimum word length to consider
+    Returns:
+        List of WordBitesMove objects describing how to form each word
+    """
+    valid_words = load_word_lists()
+    found_moves = {}  # Use dict to track unique words
+    
+    # Get all blocks and their letters
+    blocks = board.blocks
+    
+    # Create a map of letters to blocks that contain them
+    letter_to_blocks: Dict[str, List[Block]] = {}
+    for block in blocks:
+        for letter in block.letters:
+            if letter not in letter_to_blocks:
+                letter_to_blocks[letter] = []
+            letter_to_blocks[letter].append(block)
+    
+    def can_place_blocks_horizontally(blocks_to_place: List[Block], row: int, start_col: int, board_copy: WordBitesBoard) -> bool:
+        """Check if we can place the given blocks horizontally starting at the given position"""
+        col = start_col
+        for block in blocks_to_place:
+            # Check if we can move the block to this position
+            if not board_copy.is_valid_position(block, row, col):
+                return False
+            col += 1
+        return True
+    
+    def try_form_word(word: str, row: int, start_col: int, board_copy: WordBitesBoard) -> Optional[List[Tuple[Block, Tuple[int, int]]]]:
+        """Try to form a word at the given position by moving blocks"""
+        moves = []
+        col = start_col
+        
+        # For each letter in the word
+        for letter in word:
+            # Find a block containing this letter that we haven't used yet
+            available_blocks = [b for b in letter_to_blocks.get(letter, []) 
+                              if not any(b == m[0] for m in moves)]
+            
+            if not available_blocks:
+                return None  # Can't form word - missing required letter
+                
+            # Try each available block
+            placed = False
+            for block in available_blocks:
+                # If it's a double block, check which position has our letter
+                target_pos = None
+                if block.type != BlockType.SINGLE:
+                    if block.letters[0] == letter:
+                        target_pos = (row, col)
+                    elif block.letters[1] == letter:
+                        # For vertical blocks, we need the bottom position
+                        # For horizontal blocks, we need the right position
+                        if block.type == BlockType.VERTICAL:
+                            target_pos = (row-1, col)  # Place it one row up so bottom letter is in position
+                        else:
+                            target_pos = (row, col-1)  # Place it one col left so right letter is in position
+                else:
+                    target_pos = (row, col)
+                
+                if target_pos and board_copy.is_valid_position(block, target_pos[0], target_pos[1]):
+                    moves.append((block, target_pos))
+                    placed = True
+                    break
+            
+            if not placed:
+                return None  # Couldn't place a block for this letter
+                
+            col += 1
+        
+        return moves
+    
+    # Try forming words in each row
+    for row in range(board.ROWS):
+        # Try each starting position in the row
+        for start_col in range(board.COLS):
+            # Create a copy of the board for testing moves
+            board_copy = deepcopy(board)
+            
+            # Try each valid word
+            for word in valid_words:
+                # Skip words that are too short, too long to fit, or already found
+                if (len(word) < min_length or 
+                    start_col + len(word) > board.COLS or
+                    word in found_moves):  # Skip if we already found this word
+                    continue
+                
+                # Try to form this word
+                moves = try_form_word(word, row, start_col, board_copy)
+                if moves:
+                    # Only keep the first valid combination found for this word
+                    found_moves[word] = WordBitesMove(word=word, block_moves=moves)
+    
+    # Convert dict to list and sort by score (highest first) and alphabetically
+    moves_list = list(found_moves.values())
+    moves_list.sort(key=lambda m: (-m.score, m.word))
+    return moves_list
+
+def print_word_bites_moves(moves: List[WordBitesMove]):
+    """Print found Word Bites words sorted by length and alphabetically."""
+    if not moves:
+        print("\nNo valid words found")
+        return
+        
+    print("\nFound Word Bites Words:")
+    current_length = 0
+    total_score = 0
+    
+    for move in moves:
+        if len(move.word) != current_length:
+            current_length = len(move.word)
+            print(f"\n{current_length} letters:")
+        
+        # Print just the word and score
+        print(f"{move.word} ({move.score} points)")
+        total_score += move.score
+    
+    print(f"\nTotal words found: {len(moves)}")
+    print(f"Total possible score: {total_score}") 

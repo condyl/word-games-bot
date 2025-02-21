@@ -235,7 +235,7 @@ class WordBitesBoard:
                 if block and block.position == (row, col):  # Primary position
                     # Show connection for double blocks
                     if block.type == BlockType.HORIZONTAL:
-                        row_str.append(f"[{block.letters[0]}-")  # First letter with horizontal connector
+                        row_str.append(f"[{block.letters[0]} -")  # First letter with horizontal connector
                     elif block.type == BlockType.VERTICAL:
                         row_str.append(f"[{block.letters[0]}|")  # First letter with vertical connector
                     else:
