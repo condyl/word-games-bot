@@ -8,6 +8,12 @@ import pytesseract
 import os
 import argparse
 
+# Cache OCR configs
+OCR_CONFIGS = [
+    '--psm 10 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    '--psm 6 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+]
+
 def find_iphone_window():
     # List of possible window title keywords for iPhone mirroring
     iphone_keywords = ['iPhone', 'iOS', 'QuickTime Player']
@@ -52,16 +58,17 @@ def find_game_board(image, game_version):
         start_x = int(width * 0.06)
         end_x = int(width * 0.94)
     elif game_version.startswith("ANAGRAM"):
-        start_y = int(height * 0.80)
-        end_y = int(height * 0.85)
-        if game_version == "ANAGRAM7":
+        # Specific dimensions for anagram modes
+        if game_version == "ANAGRAM6":
             start_y = int(height * 0.80)
-            end_y = int(height * 0.845)  # Slightly less height to add bottom padding
-            start_x = int(width * 0.02)  # More padding on left
-            end_x = int(width * 0.98)    # More padding on right
-        else:  # ANAGRAM6
+            end_y = int(height * 0.85)
             start_x = int(width * 0.03)
             end_x = int(width * 0.97)
+        else:  # ANAGRAM7
+            start_y = int(height * 0.80)
+            end_y = int(height * 0.845)
+            start_x = int(width * 0.02)
+            end_x = int(width * 0.98)
     else:
         raise ValueError(f"Unsupported game version: {game_version}")
     
@@ -162,12 +169,7 @@ def process_cell(cell, row, col, cells_folder=None):
             cv2.imwrite(f'{cells_folder}/cell_{row}_{col}_processed.png', padded)
         
         # Try OCR with different configurations
-        configs = [
-            '--psm 10 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-            '--psm 6 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        ]
-        
-        for config in configs:
+        for config in OCR_CONFIGS:
             text = pytesseract.image_to_string(padded, config=config).strip()
             if text and len(text) > 0:
                 letter = text[0].upper()
@@ -323,11 +325,11 @@ def get_game_board(game_version="4x4"):
         
         # Add padding for better letter separation
         if game_version == "ANAGRAM7":
-            h_padding = int(cell_width * 0.20)  # 20% horizontal padding for ANAGRAM7
-            v_padding = 2  # 2 pixels vertical padding
+            h_padding = int(cell_width * 0.20)
+            v_padding = 2
         else:  # ANAGRAM6
-            h_padding = int(cell_width * 0.15)  # 15% horizontal padding
-            v_padding = 0  # No vertical padding
+            h_padding = int(cell_width * 0.15)
+            v_padding = 0
         
         # Create a single row for anagram letters
         row = []

@@ -1,15 +1,30 @@
 from typing import List, Set, Tuple
+from config import WORD_SCORES, WORD_LIST_PATH  # Add imports from config
+
+# Cache for prefix sets
+_prefix_cache = {}
+
+def get_prefix_set(valid_words):
+    """Get or create prefix set for the given words."""
+    cache_key = frozenset(valid_words)
+    if cache_key not in _prefix_cache:
+        prefixes = set()
+        for word in valid_words:
+            for i in range(1, len(word)):
+                prefixes.add(word[:i])
+        _prefix_cache[cache_key] = prefixes
+    return _prefix_cache[cache_key]
 
 def load_word_lists() -> Set[str]:
     """Load the filtered Collins word list into a set of valid words."""
     all_words = set()
     
     try:
-        with open('word_lists/collins-word-list-2019-filtered.txt', 'r', encoding='utf-8') as f:
+        with open(WORD_LIST_PATH, 'r', encoding='utf-8') as f:  # Use path from config
             words = f.read().splitlines()
             all_words.update(w.upper() for w in words)  # Convert to uppercase
     except FileNotFoundError:
-        raise FileNotFoundError("Could not find word list file. Please ensure 'word_lists/collins-word-list-2019-filtered.txt' exists.")
+        raise FileNotFoundError(f"Could not find word list file. Please ensure '{WORD_LIST_PATH}' exists.")
     
     return all_words
 
@@ -45,10 +60,7 @@ def find_words(board: List[List[str]], game_version: str = "4x4", min_length: in
     empty_cells = get_empty_cells(game_version)
     
     # Create prefix set for faster lookups
-    prefixes = set()
-    for word in valid_words:
-        for i in range(1, len(word)):
-            prefixes.add(word[:i])
+    prefixes = get_prefix_set(valid_words)
     
     def is_valid_prefix(word: str) -> bool:
         return word in prefixes or word in valid_words
@@ -97,12 +109,8 @@ def calculate_score(words: dict[str, List[Tuple[int, int]]]) -> int:
     score = 0
     for word in words:
         length = len(word)
-        if length == 3:
-            score += 100
-        elif length == 4:
-            score += 400
-        elif length == 5:
-            score += 800
+        if length in WORD_SCORES:
+            score += WORD_SCORES[length]
         else:
             score += 400 * (length - 2)  # Standard scoring formula for longer words
     return score

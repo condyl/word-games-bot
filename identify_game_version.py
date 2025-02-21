@@ -89,10 +89,16 @@ def identify_game_version():
     # Crop and process mask
     height = active_mask.shape[0]
     if is_anagram:
-        crop_start = int(height * 0.6)
-        cropped_mask = active_mask[crop_start:, :]
-        _, cropped_mask = cv2.threshold(cropped_mask, 127, 255, cv2.THRESH_BINARY)
-        kernel = np.ones((5,5), np.uint8)
+        # Adjust crop region for anagrams
+        crop_start = int(height * 0.75)  # Move crop region lower
+        crop_end = int(height * 0.85)    # Reduce crop height
+        cropped_mask = active_mask[crop_start:crop_end, :]
+        
+        # More aggressive thresholding for anagrams
+        _, cropped_mask = cv2.threshold(cropped_mask, 100, 255, cv2.THRESH_BINARY)
+        
+        # Use smaller kernel for anagram morphology
+        kernel = np.ones((3,3), np.uint8)
         cropped_mask = cv2.morphologyEx(cropped_mask, cv2.MORPH_CLOSE, kernel)
         cropped_mask = cv2.morphologyEx(cropped_mask, cv2.MORPH_OPEN, kernel)
     else:
@@ -102,13 +108,13 @@ def identify_game_version():
     # Count cells
     inverted_mask = cv2.bitwise_not(cropped_mask)
     num_labels, _, _, _ = cv2.connectedComponentsWithStats(inverted_mask)
-    num_cells = num_labels - 1
+    num_cells = num_labels - 1  # Subtract background component
     
     # Identify the pattern
     if is_anagram:
-        if num_cells == 6:
+        if 5 <= num_cells <= 6:  # More lenient detection for ANAGRAM6
             return 'ANAGRAM6'
-        elif num_cells == 7:
+        elif 6 <= num_cells <= 7:  # More lenient detection for ANAGRAM7
             return 'ANAGRAM7'
         else:
             return f'unknown_anagram ({num_cells} cells)'

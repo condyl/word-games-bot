@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Tuple, List
 import os
 from threading import Lock
+from config import GAME_DURATION
 
 WORDS_FOUND = 0
 GAME_VERSION = "unknown"
@@ -33,13 +34,13 @@ def timeout_handler(signum, frame):
     print("------------------------")
     print(f"Game version: {GAME_VERSION}")
     print(f"Words found: {WORDS_FOUND}")
-    print(f"Time played: 80 seconds")
+    print(f"Time played: {GAME_DURATION} seconds")
     print("Program terminated.")
     os._exit(0)
 
 def update_time_remaining():
     global TIME_REMAINING
-    TIME_REMAINING = max(0, 80 - (time.time() - START_TIME))
+    TIME_REMAINING = max(0, GAME_DURATION - (time.time() - START_TIME))
 
 def main():
     try:
@@ -54,7 +55,7 @@ def main():
         time.sleep(1)
         
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(80)
+        signal.alarm(GAME_DURATION)
         
         # First identify the game version
         try:
