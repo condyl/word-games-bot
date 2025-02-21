@@ -77,8 +77,11 @@ def main():
 
         if board:
             print("Game Board:")
-            for row in board:
-                print(' '.join(row))
+            if game_version == "WORD_BITES":
+                print(board)  # Use the board's string representation
+            else:
+                for row in board:
+                    print(' '.join(row))
 
             # Handle differently based on game type
             if game_version.startswith('ANAGRAM'):
