@@ -4,15 +4,12 @@ import time
 from PIL import Image
 import numpy as np
 import cv2
-import pytesseract
+import easyocr
 import os
 import argparse
 
-# Cache OCR configs
-OCR_CONFIGS = [
-    '--psm 10 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-    '--psm 6 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-]
+# Initialize EasyOCR reader globally (it's slow to initialize)
+READER = easyocr.Reader(['en'], gpu=False)
 
 def find_iphone_window():
     # List of possible window title keywords for iPhone mirroring
@@ -80,144 +77,83 @@ def find_game_board(image, game_version):
     
     return cropped
 
-def is_likely_P(binary):
-    """Check if a letter might be P based on its shape characteristics"""
-    height, width = binary.shape
-    
-    # Split the image into more detailed regions
-    h_third = height // 3
-    w_third = width // 3
-    
-    # Get regions for analysis
-    left_col = binary[:, :w_third]
-    top_right = binary[0:h_third, 2*w_third:]
-    middle_right = binary[h_third:2*h_third, 2*w_third:]
-    bottom_right = binary[2*h_third:, 2*w_third:]
-    top_half = binary[:height//2, :]
-    bottom_half = binary[height//2:, :]
-    
-    # Calculate densities
-    left_density = np.sum(left_col == 255) / left_col.size
-    top_density = np.sum(top_right == 255) / top_right.size
-    middle_density = np.sum(middle_right == 255) / middle_right.size
-    bottom_density = np.sum(bottom_right == 255) / bottom_right.size
-    top_half_density = np.sum(top_half == 255) / top_half.size
-    bottom_half_density = np.sum(bottom_half == 255) / bottom_half.size
-    
-    # Key characteristics of P:
-    # 1. Strong vertical line on the left
-    has_left_line = left_density > 0.5
-    
-    # 2. Curved part at top right
-    has_top_curve = top_density > 0.3
-    
-    # 3. Very empty bottom right
-    has_empty_bottom = bottom_density < 0.15
-    
-    # 4. Gap in middle right (where curve ends)
-    has_middle_gap = middle_density < 0.25
-    
-    # 5. Top half should be significantly denser than bottom half
-    top_bottom_ratio = top_half_density / bottom_half_density if bottom_half_density > 0 else float('inf')
-    has_density_difference = top_bottom_ratio > 1.3
-    
-    # 6. Bottom right should be much emptier than top right
-    top_bottom_right_ratio = top_density / bottom_density if bottom_density > 0 else float('inf')
-    has_right_side_difference = top_bottom_right_ratio > 2.5
-    
-    # Combine all characteristics
-    is_p = (has_left_line and 
-            has_top_curve and 
-            has_empty_bottom and 
-            has_middle_gap and 
-            has_density_difference and 
-            has_right_side_difference)
-    
-    return is_p
-
 def process_cell(cell, row, col, cells_folder=None):
     """Process a single cell to extract its letter"""
     if cell is None or cell.size == 0:
         print(f"Warning: Empty cell at ({row},{col})")
         return '?'
-    
+        
+    # Convert to grayscale
     gray = cv2.cvtColor(cell, cv2.COLOR_BGR2GRAY)
     
-    # Try multiple approaches to get the best read
+    # Resize to a larger size for better OCR
+    gray = cv2.resize(gray, (200, 200))
+    
+    # Apply adaptive histogram equalization
+    clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(4,4))
+    gray = clahe.apply(gray)
+    
+    # Try multiple preprocessing approaches
     methods = [
-        # Standard threshold
+        # Standard Otsu's thresholding
+        lambda: cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1],
+        
+        # Fixed threshold for consistency
         lambda: cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)[1],
-        # Lower threshold for lighter letters
-        lambda: cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY_INV)[1],
-        # Higher threshold for darker letters
-        lambda: cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)[1],
-        # Adaptive threshold for varying brightness
+        
+        # Adaptive thresholding
         lambda: cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                    cv2.THRESH_BINARY_INV, 11, 2)
+                                    cv2.THRESH_BINARY_INV, 15, 5),
     ]
+    
+    best_result = None
+    max_confidence = 0
     
     for idx, get_binary in enumerate(methods):
         binary = get_binary()
-        binary = cv2.resize(binary, (100, 100))
         
-        # Add padding for better OCR
-        padded = cv2.copyMakeBorder(binary, 20, 20, 20, 20, 
-                                   cv2.BORDER_CONSTANT, value=0)
+        # Standard morphological operations
+        kernel = np.ones((2,2), np.uint8)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
         
-        # Save the processed cell image if a folder is provided
+        # Add padding
+        binary = cv2.copyMakeBorder(binary, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=0)
+        
+        # Save debug images if requested
         if cells_folder and idx == 0:
-            cv2.imwrite(f'{cells_folder}/cell_{row}_{col}_processed.png', padded)
+            cv2.imwrite(f'{cells_folder}/cell_{row}_{col}_binary.png', binary)
         
-        # Try OCR with different configurations
-        for config in OCR_CONFIGS:
-            text = pytesseract.image_to_string(padded, config=config).strip()
-            if text and len(text) > 0:
-                letter = text[0].upper()
-                # Always check for P if the letter could be confused with it
-                if letter in ['D', 'B', 'P', 'R', 'E', 'F'] and is_likely_P(binary):
-                    return 'P'
-                if letter == 'A' and is_likely_K(binary):
-                    return 'K'
-                return letter
+        try:
+            # Use EasyOCR with confidence scores
+            result = READER.readtext(binary, 
+                                   allowlist='ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+                                   batch_size=1,
+                                   detail=1)
+            
+            if result and len(result) > 0:
+                text = result[0][1].upper()
+                confidence = result[0][2]
+                
+                # Keep track of the highest confidence result
+                if confidence > max_confidence:
+                    max_confidence = confidence
+                    best_result = text
+                
+                # If we get a high confidence result, return immediately
+                if confidence > 0.8:
+                    return text
+                
+        except Exception as e:
+            print(f"Warning: OCR failed for cell ({row},{col}): {str(e)}")
+            continue
     
-    print(f"Warning: Failed to detect letter at ({row},{col})")
-    return '?'
-
-def is_likely_K(binary):
-    """Check if a letter might be K based on its shape characteristics"""
-    height, width = binary.shape
+    # Return the highest confidence result if we found one
+    if best_result:
+        return best_result
     
-    # Look for strong vertical line on left
-    left_col = binary[:, :width//3]
-    left_pixels = np.sum(left_col == 255)
-    has_vertical = left_pixels > (height * width/3 * 0.6)
-    
-    # Find the intersection point (where diagonals meet the vertical)
-    mid_height = height // 2
-    mid_width = width // 3
-    
-    # Check for intersection point
-    intersection_region = binary[mid_height-5:mid_height+5, mid_width-5:mid_width+5]
-    has_intersection = np.sum(intersection_region == 255) > 25
-    
-    # Check upper and lower diagonals
-    upper_right = binary[:mid_height, mid_width:]
-    lower_right = binary[mid_height:, mid_width:]
-    
-    upper_pixels = np.sum(upper_right == 255)
-    lower_pixels = np.sum(lower_right == 255)
-    
-    # K should have roughly equal amounts of pixels in upper and lower diagonals
-    diagonal_ratio = min(upper_pixels, lower_pixels) / max(upper_pixels, lower_pixels)
-    has_balanced_diagonals = diagonal_ratio > 0.6
-    
-    # A key difference: K has less pixels in the middle horizontal region
-    middle_horizontal = binary[mid_height-10:mid_height+10, mid_width:width]
-    middle_density = np.sum(middle_horizontal == 255) / (middle_horizontal.size)
-    has_middle_gap = middle_density < 0.3
-    
-    return (has_vertical and has_intersection and 
-            has_balanced_diagonals and has_middle_gap)
+    print(f"Warning: Failed to detect letter at ({row},{col}), assuming it's an I")
+    return 'I'  # Default to I instead of '?' when recognition fails
 
 def move_mouse_away(window_bounds):
     """Move mouse just above the game board"""
@@ -401,11 +337,6 @@ def get_game_board(game_version="4x4"):
                 letter = process_cell(cell, i, j, cells_folder)
                 row.append(letter)
             grid.append(row)
-        
-        # Print final grid
-        print("\nFinal grid:")
-        for row in grid:
-            print(' '.join(row))
         
         return grid
 
