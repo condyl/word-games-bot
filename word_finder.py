@@ -220,11 +220,18 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
     
     # Create a map of letters to blocks that contain them
     letter_to_blocks: Dict[str, List[Block]] = {}
+    print("\nDEBUG: Building letter to blocks mapping:")
     for block in blocks:
+        print(f"DEBUG: Processing block {block} at position {block.position}")
         for letter in block.letters:
             if letter not in letter_to_blocks:
                 letter_to_blocks[letter] = []
             letter_to_blocks[letter].append(block)
+            print(f"DEBUG: Added block to mapping for letter '{letter}': {letter_to_blocks[letter]}")
+    
+    print("\nDEBUG: Final letter to blocks mapping:")
+    for letter, blocks in letter_to_blocks.items():
+        print(f"DEBUG: Letter '{letter}' -> {blocks}")
     
     def can_place_blocks_horizontally(blocks_to_place: List[Block], row: int, start_col: int, board_copy: WordBitesBoard) -> bool:
         """Check if we can place the given blocks horizontally starting at the given position"""
@@ -241,44 +248,96 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
         moves = []
         col = start_col
         
+        # First check if we have enough space for the word
+        if start_col + len(word) > board_copy.COLS:
+            return None
+        
         # For each letter in the word
-        for letter in word:
+        i = 0
+        while i < len(word):
+            letter = word[i]
+            print(f"\nDEBUG: Looking for letter '{letter}' at position {i} of word '{word}'")
             # Find a block containing this letter that we haven't used yet
             available_blocks = [b for b in letter_to_blocks.get(letter, []) 
                               if not any(b == m[0] for m in moves)]
             
             if not available_blocks:
+                print(f"DEBUG: No available blocks found for letter '{letter}'")
                 return None  # Can't form word - missing required letter
                 
             # Try each available block
             placed = False
             for block in available_blocks:
-                # If it's a double block, check which position has our letter
+                print(f"DEBUG: Trying to use block {block} at position {block.position}")
                 target_pos = None
-                if block.type != BlockType.SINGLE:
+                
+                # If it's a horizontal block
+                if block.type == BlockType.HORIZONTAL:
+                    # If this is the first letter of the block
+                    if block.letters[0] == letter:
+                        # Check if we have room for the second letter and it matches
+                        if i + 1 < len(word) and block.letters[1] == word[i + 1]:
+                            target_pos = (row, col)
+                            # Check if both positions are valid
+                            if (col + 1 < board_copy.COLS and 
+                                board_copy.is_valid_position(block, row, col)):
+                                moves.append((block, target_pos))
+                                placed = True
+                                i += 2  # Skip next letter since we used both letters
+                                col += 2  # Skip next position
+                                break
+                    # If this is the second letter of the block
+                    elif block.letters[1] == letter and i > 0 and block.letters[0] == word[i - 1]:
+                        # We can only use this if the previous letter matches and wasn't placed yet
+                        if not moves or moves[-1][0] != block:
+                            target_pos = (row, col - 1)  # Position block one space left
+                            if (col > 0 and 
+                                board_copy.is_valid_position(block, row, col - 1)):
+                                moves.append((block, target_pos))
+                                placed = True
+                                col += 1
+                                break
+                
+                # If it's a vertical block
+                elif block.type == BlockType.VERTICAL:
                     if block.letters[0] == letter:
                         target_pos = (row, col)
+                        # Check if we have room below
+                        if (row + 1 < board_copy.ROWS and 
+                            board_copy.is_valid_position(block, row, col)):
+                            moves.append((block, target_pos))
+                            placed = True
+                            col += 1
+                            i += 1
+                            break
                     elif block.letters[1] == letter:
-                        # For vertical blocks, we need the bottom position
-                        # For horizontal blocks, we need the right position
-                        if block.type == BlockType.VERTICAL:
-                            target_pos = (row-1, col)  # Place it one row up so bottom letter is in position
-                        else:
-                            target_pos = (row, col-1)  # Place it one col left so right letter is in position
+                        target_pos = (row - 1, col)  # Place it one row up
+                        # Check if we have room above
+                        if (row > 0 and 
+                            board_copy.is_valid_position(block, row - 1, col)):
+                            moves.append((block, target_pos))
+                            placed = True
+                            col += 1
+                            i += 1
+                            break
+                
+                # Single block
                 else:
                     target_pos = (row, col)
-                
-                if target_pos and board_copy.is_valid_position(block, target_pos[0], target_pos[1]):
-                    moves.append((block, target_pos))
-                    placed = True
-                    break
+                    if board_copy.is_valid_position(block, row, col):
+                        moves.append((block, target_pos))
+                        placed = True
+                        col += 1
+                        i += 1
+                        break
             
             if not placed:
                 return None  # Couldn't place a block for this letter
-                
-            col += 1
+            
+            if i >= len(word):
+                break
         
-        return moves
+        return moves if len(moves) > 0 else None
     
     # Try forming words in each row
     for row in range(board.ROWS):
@@ -326,4 +385,58 @@ def print_word_bites_moves(moves: List[WordBitesMove]):
         total_score += move.score
     
     print(f"\nTotal words found: {len(moves)}")
-    print(f"Total possible score: {total_score}") 
+    print(f"Total possible score: {total_score}")
+
+def move_block(self, from_row: int, from_col: int, to_row: int, to_col: int) -> bool:
+    """
+    Move a block from one position to another.
+    Returns True if successful, False if move is invalid.
+    """
+    block = self.get_block_at(from_row, from_col)
+    print(f"\nDEBUG: Attempting to move block from ({from_row}, {from_col}) to ({to_row}, {to_col})")
+    print(f"DEBUG: Block found at source: {block}")
+    if not block:
+        print(f"DEBUG: No block found at source position ({from_row}, {from_col})")
+        return False
+        
+    if block.position != (from_row, from_col):
+        print(f"DEBUG: Block position mismatch - Expected: ({from_row}, {from_col}), Actual: {block.position}")
+        return False
+        
+    # Remove from old positions first
+    old_positions = block.get_all_positions()
+    print(f"DEBUG: Removing block from old positions: {old_positions}")
+    for old_row, old_col in old_positions:
+        self.grid[old_row][old_col] = None
+    self.blocks.remove(block)
+        
+    # Check if new position is valid
+    new_block = block.move_to(to_row, to_col)
+    new_positions = new_block.get_all_positions()
+    print(f"DEBUG: Attempting to place block at new positions: {new_positions}")
+    
+    # Verify all new positions are within bounds and empty
+    for new_row, new_col in new_positions:
+        if not (0 <= new_row < self.ROWS and 0 <= new_col < self.COLS):
+            print(f"DEBUG: New position ({new_row}, {new_col}) out of bounds")
+            # Restore block to original position
+            for pos_row, pos_col in old_positions:
+                self.grid[pos_row][pos_col] = block
+            self.blocks.append(block)
+            return False
+        if self.grid[new_row][new_col] is not None:
+            print(f"DEBUG: New position ({new_row}, {new_col}) already occupied by {self.grid[new_row][new_col]}")
+            # Restore block to original position
+            for pos_row, pos_col in old_positions:
+                self.grid[pos_row][pos_col] = block
+            self.blocks.append(block)
+            return False
+    
+    # Add to new positions
+    print(f"DEBUG: Moving block to new positions: {new_positions}")
+    for new_row, new_col in new_positions:
+        self.grid[new_row][new_col] = new_block
+    self.blocks.append(new_block)
+    print(f"DEBUG: Move successful - Block now at {new_block.position}")
+        
+    return True 

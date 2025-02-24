@@ -1,7 +1,7 @@
 from get_game_board import get_game_board
 from identify_game_version import identify_game_version
 from word_finder import find_words, find_anagrams, print_found_words, print_anagram_words, find_word_bites_words, print_word_bites_moves
-from word_drawer import draw_word, click_anagram_word
+from word_drawer import draw_word, click_anagram_word, execute_word_bites_moves
 from press_start_button import focus_and_click_start
 import time
 import signal
@@ -86,9 +86,8 @@ def main():
                 # Print all found words and their required moves
                 print_word_bites_moves(moves)
                 
-                # TODO: Implement actual block moving
-                print("\nNote: Automatic block moving not yet implemented")
-                print("Please move blocks manually according to the instructions above")
+                # Execute the moves in order (highest scoring first)
+                execute_word_bites_moves(moves, board)
                 
             elif game_version.startswith('ANAGRAM'):
                 found_words = find_anagrams(board, min_length=3)

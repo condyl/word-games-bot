@@ -175,27 +175,51 @@ class WordBitesBoard:
         Returns True if successful, False if move is invalid.
         """
         block = self.get_block_at(from_row, from_col)
-        if not block or block.position != (from_row, from_col):  # Only move from primary position
+        print(f"\nDEBUG: Attempting to move block from ({from_row}, {from_col}) to ({to_row}, {to_col})")
+        print(f"DEBUG: Block found at source: {block}")
+        if not block:
+            print(f"DEBUG: No block found at source position ({from_row}, {from_col})")
             return False
             
-        # Check if new position is valid
-        if not self.is_valid_position(block, to_row, to_col):
+        if block.position != (from_row, from_col):
+            print(f"DEBUG: Block position mismatch - Expected: ({from_row}, {from_col}), Actual: {block.position}")
             return False
             
-        # Remove from old positions
+        # Remove from old positions first
         old_positions = block.get_all_positions()
+        print(f"DEBUG: Removing block from old positions: {old_positions}")
         for old_row, old_col in old_positions:
             self.grid[old_row][old_col] = None
         self.blocks.remove(block)
             
-        # Create new block at new position
+        # Check if new position is valid
         new_block = block.move_to(to_row, to_col)
+        new_positions = new_block.get_all_positions()
+        print(f"DEBUG: Attempting to place block at new positions: {new_positions}")
+        
+        # Verify all new positions are within bounds and empty
+        for new_row, new_col in new_positions:
+            if not (0 <= new_row < self.ROWS and 0 <= new_col < self.COLS):
+                print(f"DEBUG: New position ({new_row}, {new_col}) out of bounds")
+                # Restore block to original position
+                for pos_row, pos_col in old_positions:
+                    self.grid[pos_row][pos_col] = block
+                self.blocks.append(block)
+                return False
+            if self.grid[new_row][new_col] is not None:
+                print(f"DEBUG: New position ({new_row}, {new_col}) already occupied by {self.grid[new_row][new_col]}")
+                # Restore block to original position
+                for pos_row, pos_col in old_positions:
+                    self.grid[pos_row][pos_col] = block
+                self.blocks.append(block)
+                return False
         
         # Add to new positions
-        new_positions = new_block.get_all_positions()
+        print(f"DEBUG: Moving block to new positions: {new_positions}")
         for new_row, new_col in new_positions:
             self.grid[new_row][new_col] = new_block
         self.blocks.append(new_block)
+        print(f"DEBUG: Move successful - Block now at {new_block.position}")
             
         return True
     
