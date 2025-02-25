@@ -69,20 +69,28 @@ def identify_game_version():
     opencv_image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2HSV)
     
-    # Create masks for both green and purple
+    # Create masks for green, purple, and blue (Word Bites)
     lower_green = np.array([40, 40, 40])
     upper_green = np.array([80, 255, 255])
     lower_purple = np.array([120, 20, 40])
     upper_purple = np.array([150, 100, 255])
+    lower_blue = np.array([100, 50, 50])
+    upper_blue = np.array([120, 255, 255])
     
     green_mask = cv2.inRange(hsv, lower_green, upper_green)
     purple_mask = cv2.inRange(hsv, lower_purple, upper_purple)
+    blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
     
     # Check which color has more pixels
     green_pixels = np.sum(green_mask > 0)
     purple_pixels = np.sum(purple_mask > 0)
+    blue_pixels = np.sum(blue_mask > 0)
     
-    # Choose the dominant color mask
+    # If blue is dominant and exceeds a threshold, it's Word Bites
+    if blue_pixels > max(green_pixels, purple_pixels) and blue_pixels > (width * height * 0.3):
+        return 'WORD_BITES'
+    
+    # Choose between green and purple for other games
     is_anagram = purple_pixels > green_pixels
     active_mask = purple_mask if is_anagram else green_mask
     

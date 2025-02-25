@@ -7,6 +7,7 @@ import cv2
 import easyocr
 import os
 import argparse
+from word_bites_board import WordBitesBoard, Block, BlockType
 
 # Initialize EasyOCR reader globally (it's slow to initialize)
 READER = easyocr.Reader(['en'], gpu=False)
@@ -66,10 +67,31 @@ def find_game_board(image, game_version):
             end_y = int(height * 0.845)
             start_x = int(width * 0.02)
             end_x = int(width * 0.98)
+    elif game_version == "WORD_BITES":
+        # Word Bites dimensions - ADJUST THESE VALUES AS NEEDED
+        start_y = int(height * 0.36) 
+        end_y = int(height * 0.85) 
+        start_x = int(width * 0) 
+        end_x = int(width * 1) 
     else:
         raise ValueError(f"Unsupported game version: {game_version}")
     
     cropped = opencv_image[start_y:end_y, start_x:end_x]
+    
+    # Add horizontal padding for Word Bites
+    if game_version == "WORD_BITES":
+        padding = 10  # Adjust this value as needed
+        # Create new image with padding
+        padded = cv2.copyMakeBorder(
+            cropped,
+            top=0,
+            bottom=0,
+            left=padding,
+            right=padding,
+            borderType=cv2.BORDER_CONSTANT,
+            value=[255, 255, 255]  # White padding
+        )
+        cropped = padded
     
     # Save cropped image with timestamp
     timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -135,6 +157,11 @@ def process_cell(cell, row, col, cells_folder=None):
                 text = result[0][1].upper()
                 confidence = result[0][2]
                 
+                # Ensure we only take the first character
+                if len(text) > 1:
+                    print(f"Warning: OCR returned multiple characters '{text}' at ({row},{col}), using only first character")
+                    text = text[0]
+                
                 # Keep track of the highest confidence result
                 if confidence > max_confidence:
                     max_confidence = confidence
@@ -150,6 +177,10 @@ def process_cell(cell, row, col, cells_folder=None):
     
     # Return the highest confidence result if we found one
     if best_result:
+        # Ensure we only return a single character
+        if len(best_result) > 1:
+            print(f"Warning: Best OCR result has multiple characters '{best_result}' at ({row},{col}), using only first character")
+            best_result = best_result[0]
         return best_result
     
     print(f"Warning: Failed to detect letter at ({row},{col}), assuming it's an I")
@@ -171,6 +202,25 @@ def move_mouse_away(window_bounds):
     # Move mouse to target position
     move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (target_x, target_y), 0)
     Quartz.CGEventPost(Quartz.kCGHIDEventTap, move)
+
+def is_mostly_blue(cell_image):
+    """Check if a cell is mostly blue (background)"""
+    # Convert to HSV for better color detection
+    hsv = cv2.cvtColor(cell_image, cv2.COLOR_BGR2HSV)
+    
+    # Define blue range in HSV
+    lower_blue = np.array([100, 50, 50])
+    upper_blue = np.array([130, 255, 255])
+    
+    # Create mask for blue pixels
+    blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
+    
+    # Calculate percentage of blue pixels
+    total_pixels = cell_image.shape[0] * cell_image.shape[1]
+    blue_pixels = np.count_nonzero(blue_mask)
+    blue_percentage = blue_pixels / total_pixels
+    
+    return blue_percentage > 0.5  # Return True if more than 50% is blue
 
 def get_game_board(game_version="4x4"):
     """Returns the current game board as a 2D list of letters"""
@@ -253,8 +303,77 @@ def get_game_board(game_version="4x4"):
     height, width = board_image.shape[:2]
     print(f"\nProcessing {game_version} board ({width}x{height})")
     
-    # Handle anagram modes differently
-    if game_version.startswith("ANAGRAM"):
+    # Handle Word Bites differently
+    if game_version == "WORD_BITES":
+        # Create a Word Bites board
+        board = WordBitesBoard()
+        
+        # Use full width and height including padding
+        cell_height = height // board.ROWS
+        cell_width = width // board.COLS
+        
+        # Create timestamped folder for this board's cells
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        cells_folder = f'debug/cells_{timestamp}'
+        if not os.path.exists(cells_folder):
+            os.makedirs(cells_folder)
+        
+        # Create a copy of the image for grid lines
+        debug_image = board_image.copy()
+        
+        # Draw horizontal lines (10 lines for 9 rows)
+        for i in range(board.ROWS + 1):  # 10 lines = 9 rows
+            y = int(i * (height / board.ROWS))
+            cv2.line(debug_image, (0, y), (width, y), (0, 255, 0), 1)
+        
+        # Draw vertical lines (9 lines for 8 columns)
+        for j in range(board.COLS + 1):  # 9 lines = 8 columns
+            x = int(j * (width / board.COLS))
+            cv2.line(debug_image, (x, 0), (x, height), (0, 255, 0), 1)
+            
+        cv2.imwrite(f'{cells_folder}/grid_lines.png', debug_image)
+        
+        # Process each cell
+        for i in range(board.ROWS):  # 9 rows
+            for j in range(board.COLS):  # 8 columns
+                # Calculate cell boundaries more precisely
+                x1 = int(j * (width / board.COLS))
+                y1 = int(i * (height / board.ROWS))
+                x2 = int((j + 1) * (width / board.COLS))
+                y2 = int((i + 1) * (height / board.ROWS))
+                
+                # Extract region with margins
+                # Use larger margin horizontally (for left/right) and smaller margin vertically (for top/bottom)
+                h_margin = int(width * 0.02)  # 1% of width for horizontal margins
+                v_margin = 4  # Small fixed margin for vertical
+                cell = board_image[
+                    y1 + v_margin:y2 - v_margin,
+                    x1 + h_margin:x2 - h_margin
+                ]
+                
+                # Save the cell
+                cv2.imwrite(f'{cells_folder}/cell_{i}_{j}.png', cell)
+                
+                # Skip if cell is mostly blue background
+                if is_mostly_blue(cell):
+                    continue
+                
+                # Process the cell to get the letter
+                letter = process_cell(cell, i, j, cells_folder)
+                if letter:
+                    # For now, treat all blocks as single blocks
+                    # TODO: Detect vertical/horizontal stacks
+                    block = Block(
+                        type=BlockType.SINGLE,
+                        letters=[letter],
+                        position=(i, j)
+                    )
+                    board.add_block(block)
+        
+        return board
+    
+    # Handle other game modes as before...
+    elif game_version.startswith("ANAGRAM"):
         # For anagrams, we'll process as a single row
         num_letters = 6 if game_version == "ANAGRAM6" else 7
         cell_width = width // num_letters
@@ -286,8 +405,6 @@ def get_game_board(game_version="4x4"):
             row.append(letter)
         
         return [row]  # Return as a single-row grid for consistency
-    
-    # Original grid processing for non-anagram modes
     else:
         # Define empty cells for X and O versions
         empty_cells = set()
