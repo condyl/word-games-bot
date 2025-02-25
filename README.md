@@ -12,6 +12,9 @@ This project is a bot designed to play a word finder game. It captures the game 
 - Find all valid words on the game board
 - Draw words on the screen
 - Handle different game versions and board sizes
+- Optimize word order to prioritize high-scoring words first
+- Group related words with similar scores for efficient gameplay
+- Intelligently build upon existing words rather than rebuilding from scratch
 
 ## Requirements
 
@@ -44,6 +47,26 @@ This project is a bot designed to play a word finder game. It captures the game 
 
 2. The bot will automatically capture the game board, identify the game version, find all valid words, and draw them on the screen.
 
+## Word Prioritization
+
+The bot uses a sophisticated algorithm to prioritize words:
+
+1. Words are first sorted by their point value (highest first)
+2. Words with similar scores (within a 400-point threshold) that are related (e.g., "THINK", "THINKS", "THINKER") are grouped together
+3. Words within each group are sorted by length (shortest to longest)
+
+This ensures that high-value words are played first, while still maintaining the efficiency of playing related words back-to-back when their scores are similar.
+
+## Efficient Word Building
+
+For related words (e.g., "ICEWORM" and "ICEWORMS"), the bot intelligently builds upon the existing word rather than rebuilding it from scratch. This significantly improves efficiency by:
+
+1. Identifying when a new word is an extension of a previously formed word
+2. Only moving the additional blocks needed to form the new word
+3. Preserving the existing word structure on the board
+
+This optimization is especially effective for groups of related words, reducing the number of block movements required and increasing the speed of gameplay.
+
 ## File Structure
 
 - [main.py](http://_vscodecontentref_/1): Main entry point for the bot
@@ -55,6 +78,30 @@ This project is a bot designed to play a word finder game. It captures the game 
 - [filter_collins.py](http://_vscodecontentref_/7): Filters the Collins word list
 - [word_lists](http://_vscodecontentref_/8): Directory containing word list files
 - [debug](http://_vscodecontentref_/9): Directory containing debug screenshots
+- [tests](http://_vscodecontentref_/10): Directory containing test files
+
+## Running Tests
+
+To run all tests:
+
+```sh
+python3 tests/run_all_tests.py
+```
+
+To run a specific test:
+
+```sh
+python3 tests/test_score_priority.py
+```
+
+The test suite includes:
+- `test_score_priority.py`: Tests prioritization by score first, then grouping related words
+- `test_points_per_word.py`: Tests word grouping by average points per word
+- `test_complex_priority.py`: Tests complex prioritization of word groups
+- `test_word_priority.py`: Tests prioritization of groups over single words
+- `test_word_order.py`: Tests basic word ordering functionality
+- `test_groups.py`: Tests grouping of related words
+- `test_word_extension.py`: Tests building upon existing words rather than rebuilding from scratch
 
 ## License
 

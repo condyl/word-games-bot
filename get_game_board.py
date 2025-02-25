@@ -157,6 +157,11 @@ def process_cell(cell, row, col, cells_folder=None):
                 text = result[0][1].upper()
                 confidence = result[0][2]
                 
+                # Ensure we only take the first character
+                if len(text) > 1:
+                    print(f"Warning: OCR returned multiple characters '{text}' at ({row},{col}), using only first character")
+                    text = text[0]
+                
                 # Keep track of the highest confidence result
                 if confidence > max_confidence:
                     max_confidence = confidence
@@ -172,6 +177,10 @@ def process_cell(cell, row, col, cells_folder=None):
     
     # Return the highest confidence result if we found one
     if best_result:
+        # Ensure we only return a single character
+        if len(best_result) > 1:
+            print(f"Warning: Best OCR result has multiple characters '{best_result}' at ({row},{col}), using only first character")
+            best_result = best_result[0]
         return best_result
     
     print(f"Warning: Failed to detect letter at ({row},{col}), assuming it's an I")
@@ -309,7 +318,7 @@ def get_game_board(game_version="4x4"):
         if not os.path.exists(cells_folder):
             os.makedirs(cells_folder)
         
-        # Debug: Draw grid lines on a copy of the image
+        # Create a copy of the image for grid lines
         debug_image = board_image.copy()
         
         # Draw horizontal lines (10 lines for 9 rows)

@@ -202,6 +202,160 @@ class WordBitesMove:
         else:
             self.score = 400 * (length - 2)  # Standard scoring formula for longer words
 
+def are_words_related(word1: str, word2: str) -> bool:
+    """
+    Check if two words are related (one is a derivative of the other).
+    Words are considered related if:
+    1. They are identical
+    2. One word is a prefix of the other (e.g., "PLAY" and "PLAYER")
+    3. They share a common stem (first 3-4 characters) without leading unrelated letters
+    
+    Examples of related words:
+    - "think" and "thinks"
+    - "think" and "thinker"
+    - "run" and "running"
+    - "play" and "player"
+    
+    The function ensures words don't have leading or trailing unrelated letters.
+    For example, "UNTHINK" and "THINK" would not be considered related despite
+    sharing a common stem, because "UNTHINK" has a leading "UN" that changes the meaning.
+    """
+    # Convert to uppercase for consistency
+    word1 = word1.upper()
+    word2 = word2.upper()
+    
+    # If words are identical, they're related
+    if word1 == word2:
+        return True
+    
+    # Check if one word is a prefix of the other
+    if word1.startswith(word2) or word2.startswith(word1):
+        return True
+    
+    # Check for common word stems
+    # Get the first 3-4 characters as a potential stem
+    min_length = min(len(word1), len(word2))
+    if min_length >= 3:
+        stem_length = min(4, min_length)
+        # Only consider words related if they both start with the same stem
+        # This prevents words with leading unrelated letters from being considered related
+        if word1[:stem_length] == word2[:stem_length]:
+            return True
+    
+    return False
+
+def group_related_words(words_list: List[WordBitesMove]) -> List[List[WordBitesMove]]:
+    """
+    Group related words together so they can be played back-to-back.
+    
+    This function:
+    1. Groups words that are related (share common stems or prefixes)
+    2. Sorts words within each group by length (shortest to longest)
+    3. Sorts groups by average points per word in the group (highest first)
+    
+    The resulting groups will be used by optimize_word_order to prioritize
+    groups with higher average point value, maximizing gameplay efficiency.
+    
+    Returns:
+        A list of lists, where each inner list contains related words.
+    """
+    if not words_list:
+        return []
+    
+    # Create a copy of the list to avoid modifying the original
+    remaining_words = words_list.copy()
+    word_groups = []
+    
+    while remaining_words:
+        # Start a new group with the first remaining word
+        current_word = remaining_words[0]
+        current_group = [current_word]
+        remaining_words.remove(current_word)
+        
+        # Find all words related to the current group
+        i = 0
+        while i < len(remaining_words):
+            # Check if this word is related to any word in the current group
+            is_related = False
+            for group_word in current_group:
+                if are_words_related(group_word.word, remaining_words[i].word):
+                    is_related = True
+                    break
+            
+            if is_related:
+                current_group.append(remaining_words[i])
+                remaining_words.pop(i)
+            else:
+                i += 1
+        
+        # Sort words within the group by length (shortest to longest)
+        current_group.sort(key=lambda m: (len(m.word), m.word))
+        word_groups.append(current_group)
+    
+    # Sort groups by average points per word (highest first)
+    word_groups.sort(key=lambda group: -sum(move.score for move in group) / len(group))
+    
+    return word_groups
+
+def optimize_word_order(moves_list: List[WordBitesMove]) -> List[WordBitesMove]:
+    """
+    Optimize the order of words to prioritize high-scoring words first, then related words.
+    
+    This function will:
+    1. Sort all words by their score (highest first)
+    2. For words with similar scores (within a threshold), group related words together
+    3. Sort words within each group by length (shortest to longest)
+    4. Return a list with this optimized order, where:
+       a. Highest scoring words come first
+       b. Related words with similar scores are kept together
+    
+    This ensures that high-value words (e.g., a 2200-point word) are prioritized over
+    groups of lower-scoring words, while still maintaining the efficiency of playing
+    related words back-to-back when their scores are similar.
+    """
+    if not moves_list:
+        return []
+    
+    # Define a threshold for considering scores "similar"
+    # Words with scores within this threshold will be grouped if related
+    SCORE_THRESHOLD = 400
+    
+    # First, sort all words by score (highest first)
+    sorted_by_score = sorted(moves_list, key=lambda m: -m.score)
+    
+    # Group words with similar scores that are related
+    result = []
+    i = 0
+    
+    while i < len(sorted_by_score):
+        current_word = sorted_by_score[i]
+        current_score = current_word.score
+        
+        # Find all words with similar scores that are related to the current word
+        related_group = [current_word]
+        j = i + 1
+        
+        while j < len(sorted_by_score):
+            next_word = sorted_by_score[j]
+            
+            # If the score difference is within the threshold and words are related
+            if (current_score - next_word.score <= SCORE_THRESHOLD and 
+                any(are_words_related(word.word, next_word.word) for word in related_group)):
+                related_group.append(next_word)
+                sorted_by_score.pop(j)
+            else:
+                j += 1
+        
+        # Sort words within the group by length (shortest to longest)
+        # For words of the same length, sort alphabetically
+        related_group.sort(key=lambda m: (len(m.word), m.word))
+        
+        # Add the group to the result
+        result.extend(related_group)
+        i += 1
+    
+    return result
+
 def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[WordBitesMove]:
     """
     Find all possible words that can be made in Word Bites by moving blocks around.
@@ -210,7 +364,8 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
         board: The Word Bites board
         min_length: Minimum word length to consider
     Returns:
-        List of WordBitesMove objects describing how to form each word
+        List of WordBitesMove objects describing how to form each word,
+        optimized to group related words together
     """
     valid_words = load_word_lists()
     found_moves = {}  # Use dict to track unique words
@@ -220,18 +375,11 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
     
     # Create a map of letters to blocks that contain them
     letter_to_blocks: Dict[str, List[Block]] = {}
-    print("\nDEBUG: Building letter to blocks mapping:")
     for block in blocks:
-        print(f"DEBUG: Processing block {block} at position {block.position}")
         for letter in block.letters:
             if letter not in letter_to_blocks:
                 letter_to_blocks[letter] = []
             letter_to_blocks[letter].append(block)
-            print(f"DEBUG: Added block to mapping for letter '{letter}': {letter_to_blocks[letter]}")
-    
-    print("\nDEBUG: Final letter to blocks mapping:")
-    for letter, blocks in letter_to_blocks.items():
-        print(f"DEBUG: Letter '{letter}' -> {blocks}")
     
     def can_place_blocks_horizontally(blocks_to_place: List[Block], row: int, start_col: int, board_copy: WordBitesBoard) -> bool:
         """Check if we can place the given blocks horizontally starting at the given position"""
@@ -256,19 +404,16 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
         i = 0
         while i < len(word):
             letter = word[i]
-            print(f"\nDEBUG: Looking for letter '{letter}' at position {i} of word '{word}'")
             # Find a block containing this letter that we haven't used yet
             available_blocks = [b for b in letter_to_blocks.get(letter, []) 
                               if not any(b == m[0] for m in moves)]
             
             if not available_blocks:
-                print(f"DEBUG: No available blocks found for letter '{letter}'")
                 return None  # Can't form word - missing required letter
                 
             # Try each available block
             placed = False
             for block in available_blocks:
-                print(f"DEBUG: Trying to use block {block} at position {block.position}")
                 target_pos = None
                 
                 # If it's a horizontal block
@@ -360,10 +505,11 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
                     # Only keep the first valid combination found for this word
                     found_moves[word] = WordBitesMove(word=word, block_moves=moves)
     
-    # Convert dict to list and sort by score (highest first) and alphabetically
+    # Convert dict to list
     moves_list = list(found_moves.values())
-    moves_list.sort(key=lambda m: (-m.score, m.word))
-    return moves_list
+    
+    # Optimize the order of words to prioritize related words
+    return optimize_word_order(moves_list)
 
 def print_word_bites_moves(moves: List[WordBitesMove]):
     """Print found Word Bites words sorted by length and alphabetically."""
@@ -393,19 +539,14 @@ def move_block(self, from_row: int, from_col: int, to_row: int, to_col: int) -> 
     Returns True if successful, False if move is invalid.
     """
     block = self.get_block_at(from_row, from_col)
-    print(f"\nDEBUG: Attempting to move block from ({from_row}, {from_col}) to ({to_row}, {to_col})")
-    print(f"DEBUG: Block found at source: {block}")
     if not block:
-        print(f"DEBUG: No block found at source position ({from_row}, {from_col})")
         return False
         
     if block.position != (from_row, from_col):
-        print(f"DEBUG: Block position mismatch - Expected: ({from_row}, {from_col}), Actual: {block.position}")
         return False
         
     # Remove from old positions first
     old_positions = block.get_all_positions()
-    print(f"DEBUG: Removing block from old positions: {old_positions}")
     for old_row, old_col in old_positions:
         self.grid[old_row][old_col] = None
     self.blocks.remove(block)
@@ -413,19 +554,16 @@ def move_block(self, from_row: int, from_col: int, to_row: int, to_col: int) -> 
     # Check if new position is valid
     new_block = block.move_to(to_row, to_col)
     new_positions = new_block.get_all_positions()
-    print(f"DEBUG: Attempting to place block at new positions: {new_positions}")
     
     # Verify all new positions are within bounds and empty
     for new_row, new_col in new_positions:
         if not (0 <= new_row < self.ROWS and 0 <= new_col < self.COLS):
-            print(f"DEBUG: New position ({new_row}, {new_col}) out of bounds")
             # Restore block to original position
             for pos_row, pos_col in old_positions:
                 self.grid[pos_row][pos_col] = block
             self.blocks.append(block)
             return False
         if self.grid[new_row][new_col] is not None:
-            print(f"DEBUG: New position ({new_row}, {new_col}) already occupied by {self.grid[new_row][new_col]}")
             # Restore block to original position
             for pos_row, pos_col in old_positions:
                 self.grid[pos_row][pos_col] = block
@@ -433,10 +571,8 @@ def move_block(self, from_row: int, from_col: int, to_row: int, to_col: int) -> 
             return False
     
     # Add to new positions
-    print(f"DEBUG: Moving block to new positions: {new_positions}")
     for new_row, new_col in new_positions:
         self.grid[new_row][new_col] = new_block
     self.blocks.append(new_block)
-    print(f"DEBUG: Move successful - Block now at {new_block.position}")
         
     return True 
