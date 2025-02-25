@@ -15,6 +15,7 @@ This project is a bot designed to play a word finder game. It captures the game 
 - Optimize word order to prioritize high-scoring words first
 - Group related words with similar scores for efficient gameplay
 - Intelligently build upon existing words rather than rebuilding from scratch
+- Ultra-high-speed gameplay across all game modes (Word Hunt, Anagrams, and Word Bites)
 
 ## Requirements
 
@@ -66,6 +67,26 @@ For related words (e.g., "ICEWORM" and "ICEWORMS"), the bot intelligently builds
 3. Preserving the existing word structure on the board
 
 This optimization is especially effective for groups of related words, reducing the number of block movements required and increasing the speed of gameplay.
+
+## Ultra-High-Speed Gameplay
+
+The bot has been optimized for maximum speed across all game modes:
+
+1. **Word Hunt and Anagrams**: Ultra-fast word drawing with:
+   - Minimal mouse movement delays (0.005s)
+   - Optimized drag patterns
+   - Streamlined click sequences
+
+2. **Word Bites**: Lightning-fast block movement with:
+   - Ultra-short mouse movement delays (0.03s)
+   - Optimized drag patterns with fewer intermediate points
+   - Intelligent block clearing strategy
+   - Minimal wait times between related words (0.1s)
+   - Minimal wait times between groups (0.15s)
+   - Optimized retry logic for failed moves
+   - Streamlined block restoration process
+
+These optimizations make the Word Bites gameplay as quick and efficient as the other game modes, allowing for rapid word formation even with complex block movements. The bot now plays at maximum possible speed while maintaining reliability.
 
 ## File Structure
 

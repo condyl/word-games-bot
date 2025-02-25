@@ -160,15 +160,12 @@ def move_word_bites_block(block: Block, target_row: int, target_col: int, board:
         # Verify the block is actually at its expected position
         actual_block = board.get_block_at(from_row, from_col)
         if actual_block != block:
-            print(f"Block mismatch: expected {block.letters} at {block.position}, found {actual_block.letters if actual_block else 'None'}")
-            
             # Try to find the block's actual position on the board
             found = False
             for r in range(board.ROWS):
                 for c in range(board.COLS):
                     check_block = board.get_block_at(r, c)
                     if check_block and check_block.letters == block.letters and check_block.type == block.type:
-                        print(f"Found block {block.letters} at position ({r}, {c}) instead of expected {block.position}")
                         # Since Block is immutable, we need to use the actual block from the board
                         block = check_block
                         from_row, from_col = r, c
@@ -178,33 +175,26 @@ def move_word_bites_block(block: Block, target_row: int, target_col: int, board:
                     break
             
             if not found:
-                print(f"Could not find block {block.letters} on the board")
                 return False
         
         # For vertical blocks, ensure we're using the top position for both source and target
         if block.type == BlockType.VERTICAL:
             if target_row + 1 >= board.ROWS:
-                print(f"Adjusting vertical block target row from {target_row} to {target_row-1}")
                 target_row -= 1
             if not (0 <= target_row + 1 < board.ROWS):
-                print(f"Invalid target position for vertical block: {target_row}, {target_col}")
                 return False
             for r in [target_row, target_row + 1]:
                 existing = board.get_block_at(r, target_col)
                 if existing and existing != block:
-                    print(f"Target position {r}, {target_col} is occupied by {existing.letters}")
                     return False
         elif block.type == BlockType.HORIZONTAL:
             if target_col + 1 >= board.COLS:
-                print(f"Adjusting horizontal block target column from {target_col} to {target_col-1}")
                 target_col -= 1
             if not (0 <= target_col + 1 < board.COLS):
-                print(f"Invalid target position for horizontal block: {target_row}, {target_col}")
                 return False
             for c in [target_col, target_col + 1]:
                 existing = board.get_block_at(target_row, c)
                 if existing and existing != block:
-                    print(f"Target position {target_row}, {c} is occupied by {existing.letters}")
                     return False
         
         # Get screen coordinates
@@ -214,27 +204,25 @@ def move_word_bites_block(block: Block, target_row: int, target_col: int, board:
         # Calculate distance for drag
         distance = ((end_x - start_x) ** 2 + (end_y - start_y) ** 2) ** 0.5
         
-        # Determine number of steps based on distance
-        num_steps = 1
-        if distance > 100:
-            num_steps = 2
+        # Determine number of steps based on distance - fewer steps for speed
+        num_steps = 0
         if distance > 200:
-            num_steps = 3
+            num_steps = 1
         if distance > 300:
-            num_steps = 4
+            num_steps = 2
         
-        # Try the move up to 3 times
-        for attempt in range(3):
+        # Try the move up to 2 times (reduced from 3)
+        for attempt in range(2):
             try:
-                # Move mouse to block with a longer delay for reliability
+                # Move mouse to block with a shorter delay
                 move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (start_x, start_y), 0)
                 Quartz.CGEventPost(Quartz.kCGHIDEventTap, move)
-                time.sleep(0.2)  # Longer delay
+                time.sleep(0.03)  # Further reduced delay (was 0.05)
                 
                 # Click and hold
                 down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (start_x, start_y), 0)
                 Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-                time.sleep(0.2)  # Longer delay
+                time.sleep(0.03)  # Further reduced delay (was 0.05)
                 
                 # Use intermediate points for all drags to make them more reliable
                 for i in range(1, num_steps + 1):
@@ -243,17 +231,17 @@ def move_word_bites_block(block: Block, target_row: int, target_col: int, board:
                     drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, 
                                                         (intermediate_x, intermediate_y), 0)
                     Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
-                    time.sleep(0.2)  # Longer delay
+                    time.sleep(0.03)  # Further reduced delay (was 0.05)
                 
                 # Final drag to target
                 drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, (end_x, end_y), 0)
                 Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
-                time.sleep(0.2)  # Longer delay
+                time.sleep(0.03)  # Further reduced delay (was 0.05)
                 
                 # Release
                 up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (end_x, end_y), 0)
                 Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-                time.sleep(0.3)  # Even longer delay after release
+                time.sleep(0.05)  # Further reduced delay after release (was 0.1)
                 
                 # Verify the move was successful
                 success = board.move_block(from_row, from_col, target_row, target_col)
@@ -261,26 +249,22 @@ def move_word_bites_block(block: Block, target_row: int, target_col: int, board:
                     return True
                 
                 # If we're on the last attempt, try a slightly different approach
-                if attempt == 2:
-                    print(f"Final attempt with adjusted coordinates for block {block.letters}")
+                if attempt == 1:
                     # Try with slightly adjusted coordinates
                     start_x += 5
                     start_y += 5
                     end_x += 5
                     end_y += 5
                 
-                # Wait longer between attempts
-                time.sleep(0.5 * (attempt + 1))
+                # Wait between attempts
+                time.sleep(0.1)  # Further reduced delay (was 0.2)
                 
             except Exception as e:
-                print(f"Error during attempt {attempt+1}: {str(e)}")
-                time.sleep(0.5)
+                time.sleep(0.1)  # Further reduced delay (was 0.2)
         
-        print(f"All attempts to move block {block.letters} failed")
         return False
         
     except Exception as e:
-        print(f"Error moving block: {str(e)}")
         return False
 
 def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve_word: bool = False) -> bool:
@@ -293,9 +277,6 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
     Returns:
         True if all blocks were moved successfully.
     """
-    print("\nInitial board state:")
-    print(board)
-    
     # Track all blocks and their positions for restoration
     original_positions = {}
     for block in board.blocks:
@@ -325,7 +306,6 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
         # Find a matching block on the current board that hasn't been used yet
         matching_blocks = letter_to_blocks.get(letters_key, [])
         if not matching_blocks:
-            print(f"Error: Could not find a block with letters '{letters_key}' on the current board")
             return False
         
         # Find a block that's not already used in this word
@@ -338,11 +318,9 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
         
         # If all blocks of this letter are already used, use the first one (fallback)
         if current_block is None and matching_blocks:
-            print(f"Warning: All blocks with letters '{letters_key}' are already used in this word. Using one anyway.")
             current_block = matching_blocks[0]
             matching_blocks.pop(0)
         elif current_block is None:
-            print(f"Error: No available blocks with letters '{letters_key}' on the current board")
             return False
         
         # Mark this block as used
@@ -389,7 +367,6 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
     
     # Move blocking blocks to temporary positions
     for block in blocks_to_clear:
-        print(f"\nClearing block {block.letters} from position {block.position}")
         orig_pos = block.position
         
         # Find a free position that won't interfere with word formation
@@ -434,26 +411,20 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
                 break
         
         if temp_pos:
-            print(f"Moving block {block.letters} to temporary position {temp_pos}")
-            # Try up to 3 times to move the block to a temporary position
+            # Try up to 2 times to move the block to a temporary position
             success = False
-            for attempt in range(3):
+            for attempt in range(2):
                 if move_word_bites_block(block, temp_pos[0], temp_pos[1], board):
                     temp_positions[block] = orig_pos
-                    print("\nBoard after clearing move:")
-                    print(board)
-                    time.sleep(0.5)  # Longer delay after successful move
+                    time.sleep(0.05)  # Further reduced delay after successful move (was 0.1)
                     success = True
                     break
-                print(f"Attempt {attempt + 1} to move block to temp position failed, retrying...")
-                time.sleep(0.5)  # Longer delay between attempts
+                time.sleep(0.05)  # Further reduced delay between attempts (was 0.1)
             
             if not success:
-                print(f"Failed to move blocking block {block.letters} to temporary position {temp_pos}")
                 restore_blocks(original_positions, board)
                 return False
         else:
-            print(f"Could not find temporary position for blocking block {block.letters}")
             restore_blocks(original_positions, board)
             return False
     
@@ -463,11 +434,8 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
     # Move each block to its target position
     success = True
     for i, (block, target_pos) in enumerate(sorted_moves):
-        print(f"\nPlacing letter {i+1} of {len(sorted_moves)}: {block.letters} to position {target_pos}")
-        
         # Skip if block is already in correct position
         if block.position == target_pos:
-            print(f"Block {block.letters} is already in position {target_pos}")
             continue
         
         # Verify the block is still where we think it is
@@ -491,22 +459,18 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
                     if check_block and check_block.letters == block.letters and check_block.type == block.type:
                         actual_pos = (r, c)
                         actual_block = check_block
-                        print(f"Warning: Using a block that's already part of the word: {block.letters}")
                         break
                 if actual_pos:
                     break
         
         if not actual_pos:
-            print(f"Error: Block {block.letters} not found on the board")
             success = False
             break
             
         if actual_block and actual_block != block:
-            print(f"Found a different block instance with the same letters {block.letters}")
             block = actual_block
         
         if actual_pos != block.position:
-            print(f"Block {block.letters} is actually at {actual_pos}, updating from {block.position}")
             # Since Block is immutable, we need to use the actual block from the board
             block = actual_block
         
@@ -515,31 +479,24 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
         
         # Try to move the block
         attempts = 0
-        while attempts < 4:  # Increased to 4 attempts
+        while attempts < 2:  # Reduced to 2 attempts
             if move_word_bites_block(block, target_pos[0], target_pos[1], board):
-                print("\nBoard after placing letter:")
-                print(board)
-                time.sleep(0.5)  # Longer delay after successful move
+                time.sleep(0.05)  # Further reduced delay after successful move (was 0.1)
                 break
-            print(f"Attempt {attempts + 1} failed, retrying...")
             attempts += 1
-            time.sleep(0.5)  # Longer delay between attempts
+            time.sleep(0.05)  # Further reduced delay between attempts (was 0.1)
         
-        if attempts == 4:
-            print(f"Failed to move block {block.letters} to position {target_pos}")
+        if attempts == 2:
             success = False
             break
     
     # If we failed, restore all blocks to their original positions
     if not success:
-        print("\nMove failed, attempting to restore original positions...")
         restore_blocks(original_positions, board)
     elif not preserve_word:
-        # Wait a bit longer to let the game register the word
-        time.sleep(0.5)
+        # Wait a bit to let the game register the word
+        time.sleep(0.1)  # Further reduced delay (was 0.2)
     
-    print("\nFinal board state:")
-    print(board)
     return success
 
 def restore_blocks(original_positions: dict, board: WordBitesBoard) -> None:
@@ -564,27 +521,15 @@ def restore_blocks(original_positions: dict, board: WordBitesBoard) -> None:
                 break
         
         if not current_block:
-            print(f"Warning: Block {original_block.letters} not found on board during restoration")
             continue
             
         # Skip if already in correct position
         if current_pos == orig_pos:
-            print(f"Block {current_block.letters} is already in position {orig_pos}")
             continue
             
-        print(f"\nRestoring block {current_block.letters} from {current_pos} to position {orig_pos}")
-        attempts = 0
-        while attempts < 3:  # Try up to 3 times
-            if move_word_bites_block(current_block, orig_pos[0], orig_pos[1], board):
-                print("\nBoard after restoring block:")
-                print(board)
-                time.sleep(0.3)  # Longer delay between moves
-                break
-            print(f"Attempt {attempts + 1} failed, retrying...")
-            attempts += 1
-            time.sleep(0.5)  # Longer delay between attempts
-        if attempts == 3:
-            print(f"Warning: Failed to restore block {current_block.letters} to position {orig_pos} after 3 attempts")
+        # Try to restore the block
+        move_word_bites_block(current_block, orig_pos[0], orig_pos[1], board)
+        time.sleep(0.03)  # Further reduced delay between moves (was 0.05)
 
 def execute_word_bites_moves(moves: List[WordBitesMove], board: WordBitesBoard) -> None:
     """
@@ -630,20 +575,8 @@ def execute_word_bites_moves(moves: List[WordBitesMove], board: WordBitesBoard) 
             related_words.append(moves[j])
             j += 1
         
-        # Process this group of related words
-        print(f"\n{'='*50}")
-        print(f"Processing group of {len(related_words)} related words:")
-        for idx, move in enumerate(related_words):
-            print(f"{idx+1}. {move.word} ({move.score} points)")
-        print(f"{'='*50}\n")
-        
         # Execute each word in the group
         for idx, move in enumerate(related_words):
-            print(f"\nForming word '{move.word}' ({move.score} points)")
-            
-            # Take a screenshot before attempting the move to compare later
-            before_state = str(board)
-            
             # For related words, try to preserve the word formation for the next word
             preserve_word = (idx < len(related_words) - 1)
             
@@ -653,7 +586,6 @@ def execute_word_bites_moves(moves: List[WordBitesMove], board: WordBitesBoard) 
                 if move.word.startswith(last_word):
                     # The new word is an extension of the last word (e.g., "PLAY" -> "PLAYER")
                     suffix = move.word[len(last_word):]
-                    print(f"Building upon previous word '{last_word}' by adding '{suffix}'")
                     
                     # Create a modified move that only includes the new blocks needed
                     modified_block_moves = []
@@ -674,20 +606,17 @@ def execute_word_bites_moves(moves: List[WordBitesMove], board: WordBitesBoard) 
                 elif last_word.startswith(move.word):
                     # The new word is a prefix of the last word (e.g., "PLAYER" -> "PLAY")
                     # This is less common but possible
-                    print(f"Previous word '{last_word}' already contains '{move.word}'")
                     success = True  # No need to do anything, the word is already formed
                 
                 else:
                     # The words are related but one is not a prefix of the other
                     # (e.g., "PLAY" -> "PLAYING" where we need to remove 'Y' and add 'YING')
-                    print(f"Words are related but require rearrangement")
                     success = execute_word_bites_move(move, board, preserve_word)
             else:
                 # No previous word or words are not related, execute normally
                 success = execute_word_bites_move(move, board, preserve_word)
             
             if success:
-                print(f"Successfully formed word '{move.word}'")
                 total_score += move.score
                 words_formed += 1
                 
@@ -702,22 +631,16 @@ def execute_word_bites_moves(moves: List[WordBitesMove], board: WordBitesBoard) 
                 
                 # Use a shorter delay between related words
                 if idx < len(related_words) - 1:  # If not the last word in the group
-                    time.sleep(0.8)  # Even shorter delay between related words
+                    time.sleep(0.1)  # Reduced delay between related words (was 0.2)
                 else:
-                    time.sleep(1.5)  # Longer delay after completing a group
+                    time.sleep(0.15)  # Reduced delay after completing a group (was 0.3)
             else:
-                print(f"Failed to form word '{move.word}'")
                 failed_words.append(move)
-                # If we fail to form a word, wait a bit longer before trying the next one
-                time.sleep(1.5)
+                # If we fail to form a word, wait a bit before trying the next one
+                time.sleep(0.15)  # Reduced delay after failure (was 0.3)
                 # Reset last word tracking since we failed
                 last_word = None
                 last_word_blocks = {}
-            
-            # Check if the board has changed unexpectedly (game might have reset or changed)
-            after_state = str(board)
-            if before_state != after_state:
-                print("Board state has changed, continuing with next word")
         
         # Move to the next group
         i = j
@@ -727,13 +650,7 @@ def execute_word_bites_moves(moves: List[WordBitesMove], board: WordBitesBoard) 
     
     # Try the failed words one more time with a different approach
     if failed_words:
-        print("\n\nRetrying failed words with a different approach...")
         for move in failed_words:
-            print(f"\nRetrying word '{move.word}' ({move.score} points)")
-            
-            # Take a screenshot before attempting the move to compare later
-            before_state = str(board)
-            
             # Try with a different approach - sort blocks differently
             # This time sort by distance from current position to target
             block_moves = []
@@ -750,20 +667,10 @@ def execute_word_bites_moves(moves: List[WordBitesMove], board: WordBitesBoard) 
             reordered_move = WordBitesMove(move.word, [(b, p) for b, p, _ in block_moves], move.score)
             
             if execute_word_bites_move(reordered_move, board, False):
-                print(f"Successfully formed word '{move.word}' on retry")
                 total_score += move.score
                 words_formed += 1
-            else:
-                print(f"Failed to form word '{move.word}' even on retry")
             
-            # Check if the board has changed unexpectedly
-            after_state = str(board)
-            if before_state != after_state:
-                print("Board state has changed, continuing with next word")
-            
-            time.sleep(1.5)  # Longer delay after retry
-    
-    print(f"\n\nExecution complete: Formed {words_formed}/{len(moves)} words for a total of {total_score} points")
+            time.sleep(0.005)  # Reduced delay after retry (was 0.3)
 
 def draw_word(path: List[Tuple[int, int]], game_version: str = "4x4"):
     """Draw a word by dragging the mouse through the given path."""
@@ -783,13 +690,13 @@ def draw_word(path: List[Tuple[int, int]], game_version: str = "4x4"):
             screen_x, screen_y = get_letter_position(x, y, game_version)
             drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, (screen_x, screen_y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
-            time.sleep(0.02)  # Minimum reliable delay
+            time.sleep(0.005)  # Minimum reliable delay (was 0.01)
             
     finally:
         # Release at end
         up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (screen_x, screen_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-        time.sleep(0.02)  # Minimum reliable delay
+        time.sleep(0.005)  # Minimum reliable delay (was 0.01)
 
 def draw_all_words(words: dict[str, List[Tuple[int, int]]], game_version: str = "4x4"):
     """
@@ -842,7 +749,6 @@ def click_anagram_word(word: str, board: List[List[str]], game_version: str):
                     break
                     
             if letter_pos == -1:
-                print(f"Warning: Letter '{letter}' not found in remaining letters {[l for i,l in enumerate(available_letters) if i not in used_positions]}")
                 continue
             
             # Get screen coordinates for this letter
@@ -860,7 +766,7 @@ def click_anagram_word(word: str, board: List[List[str]], game_version: str):
             up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (x, y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
             
-            time.sleep(0.02)  # Small delay between clicks
+            time.sleep(0.005)  # Minimum reliable delay (was 0.01)
         
         # Click enter button
         # Move to enter button
@@ -875,7 +781,7 @@ def click_anagram_word(word: str, board: List[List[str]], game_version: str):
         up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (enter_x, enter_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
         
-        time.sleep(0.02)  # Small delay after enter
+        time.sleep(0.005)  # Minimum reliable delay (was 0.01)
         
     except Exception as e:
         print(f"Error clicking anagram word: {str(e)}")
