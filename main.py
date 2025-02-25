@@ -117,6 +117,8 @@ def main():
                     draw_future.result()
                 
             elif game_version.startswith('ANAGRAM'):
+                # Print the anagram board
+                print(' '.join(board[0]))  # Anagram board is a single row
                 found_words = find_anagrams(board, min_length=3)
                 words_found = len(found_words)
                 
@@ -128,6 +130,9 @@ def main():
                 
                 print_anagram_words(found_words)
             else:
+                # Print the word hunt board
+                for row in board:
+                    print(' '.join(row))
                 # For word hunt games, use existing drawing logic
                 word_queue = []
                 word_paths = {}

@@ -661,15 +661,13 @@ def draw_word(path: List[Tuple[int, int]], game_version: str = "4x4"):
             screen_x, screen_y = get_letter_position(x, y, game_version)
             drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, (screen_x, screen_y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
-            time.sleep(0.001)  # Further reduced delay between drag events
-        
-        last_x, last_y = get_letter_position(path[-1][0], path[-1][1], game_version)
-        up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (last_x, last_y), 0)
+            time.sleep(0.02)  # Minimum reliable delay
+            
+    finally:
+        # Release at end
+        up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (screen_x, screen_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-        
-        time.sleep(0.001)  # Further reduced delay after releasing mouse button
-    except Exception as e:
-        print(f"Error drawing word: {str(e)}")
+        time.sleep(0.02)  # Minimum reliable delay
 
 def draw_all_words(words: dict[str, List[Tuple[int, int]]], game_version: str = "4x4"):
     """
@@ -722,6 +720,7 @@ def click_anagram_word(word: str, board: List[List[str]], game_version: str):
                     break
                     
             if letter_pos == -1:
+                print(f"Warning: Letter '{letter}' not found in remaining letters {[l for i,l in enumerate(available_letters) if i not in used_positions]}")
                 continue
             
             # Get screen coordinates for this letter
@@ -739,7 +738,7 @@ def click_anagram_word(word: str, board: List[List[str]], game_version: str):
             up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (x, y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
             
-            time.sleep(0.001)  # Further reduced delay between letter clicks
+            time.sleep(0.02)  # Small delay between clicks
         
         # Click enter button
         # Move to enter button
@@ -754,7 +753,7 @@ def click_anagram_word(word: str, board: List[List[str]], game_version: str):
         up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (enter_x, enter_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
         
-        time.sleep(0.001)  # Further reduced delay after clicking enter
+        time.sleep(0.02)  # Small delay after enter
         
     except Exception as e:
         print(f"Error clicking anagram word: {str(e)}")
