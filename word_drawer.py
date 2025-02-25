@@ -726,34 +726,34 @@ def click_anagram_word(word: str, board: List[List[str]], game_version: str):
             # Get screen coordinates for this letter
             x, y = get_anagram_letter_position(0, letter_pos, game_version)
             
-            # Move to letter position
+            # Move to letter position with a small delay
             move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (x, y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, move)
             
-            # Click down
+            # Click down with delay
             down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (x, y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
             
-            # Click up
+            # Click up with delay
             up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (x, y), 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-            
-            time.sleep(0.02)  # Small delay between clicks
+            time.sleep(0.05)  # Longer delay between letters
         
         # Click enter button
-        # Move to enter button
+        # Move to enter button with delay
         move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (enter_x, enter_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, move)
         
-        # Click down
+        # Click down with delay
         down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (enter_x, enter_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
         
-        # Click up
+        # Click up with delay
         up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (enter_x, enter_y), 0)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
         
-        time.sleep(0.02)  # Small delay after enter
+        # Add longer delay after submitting word
+        time.sleep(0.1)  # Longer delay after submitting each word
         
     except Exception as e:
         print(f"Error clicking anagram word: {str(e)}")
