@@ -12,6 +12,7 @@ from typing import Tuple, List
 import os
 from threading import Lock
 from config import GAME_DURATION
+import traceback
 
 WORDS_FOUND = 0
 GAME_VERSION = "unknown"
@@ -97,7 +98,7 @@ def main():
                 
                 for word in sorted_words:
                     click_anagram_word(word, board, game_version)
-                    time.sleep(0.1)  # Small delay between words
+                    time.sleep(0.05)  # Reduced delay between words
                 
                 print_anagram_words(found_words)
             else:

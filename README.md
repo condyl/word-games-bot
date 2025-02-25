@@ -73,18 +73,20 @@ This optimization is especially effective for groups of related words, reducing 
 The bot has been optimized for maximum speed across all game modes:
 
 1. **Word Hunt and Anagrams**: Ultra-fast word drawing with:
-   - Minimal mouse movement delays (0.005s)
+   - Minimal mouse movement delays (0.003s)
    - Optimized drag patterns
    - Streamlined click sequences
 
 2. **Word Bites**: Lightning-fast block movement with:
-   - Ultra-short mouse movement delays (0.03s)
+   - Ultra-short mouse movement delays (0.02s)
    - Optimized drag patterns with fewer intermediate points
    - Intelligent block clearing strategy
-   - Minimal wait times between related words (0.1s)
-   - Minimal wait times between groups (0.15s)
+   - Minimal wait times between related words (0.08s)
+   - Minimal wait times between groups (0.12s)
    - Optimized retry logic for failed moves
-   - Streamlined block restoration process
+   - Streamlined block restoration process with faster lookups
+   - Reduced delays between block movements (0.03s)
+   - Optimized word registration delay (0.08s)
 
 These optimizations make the Word Bites gameplay as quick and efficient as the other game modes, allowing for rapid word formation even with complex block movements. The bot now plays at maximum possible speed while maintaining reliability.
 
