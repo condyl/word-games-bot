@@ -16,6 +16,7 @@ This project is a bot designed to play a word finder game. It captures the game 
 - Group related words with similar scores for efficient gameplay
 - Intelligently build upon existing words rather than rebuilding from scratch
 - Ultra-high-speed gameplay across all game modes (Word Hunt, Anagrams, and Word Bites)
+- Support for both horizontal (left-to-right) and vertical (top-to-bottom) words in Word Bites
 
 ## Requirements
 
@@ -70,25 +71,21 @@ This optimization is especially effective for groups of related words, reducing 
 
 ## Ultra-High-Speed Gameplay
 
-The bot has been optimized for maximum speed across all game modes:
+The bot is optimized for ultra-fast gameplay:
 
-1. **Word Hunt and Anagrams**: Ultra-fast word drawing with:
-   - Minimal mouse movement delays (0.003s)
-   - Optimized drag patterns
-   - Streamlined click sequences
-
-2. **Word Bites**: Lightning-fast block movement with:
-   - Ultra-short mouse movement delays (0.02s)
-   - Optimized drag patterns with fewer intermediate points
-   - Intelligent block clearing strategy
-   - Minimal wait times between related words (0.08s)
-   - Minimal wait times between groups (0.12s)
-   - Optimized retry logic for failed moves
-   - Streamlined block restoration process with faster lookups
-   - Reduced delays between block movements (0.03s)
-   - Optimized word registration delay (0.08s)
-
-These optimizations make the Word Bites gameplay as quick and efficient as the other game modes, allowing for rapid word formation even with complex block movements. The bot now plays at maximum possible speed while maintaining reliability.
+- **Word Hunt and Anagrams**: Ultra-short mouse movement delays (0.001 seconds) for lightning-fast word drawing
+- **Word Bites**: 
+  - Priority queue system for immediate word formation (no 15-20 second delay)
+  - Ultra-short mouse movement delays (0.005 seconds)
+  - Optimized drag patterns with fewer intermediate points
+  - Reduced delays between related words (0.03 seconds)
+  - Reduced delays between groups (0.05 seconds)
+  - Faster lookups in block restoration process
+  - Reduced delay between block movements to 0.005 seconds
+  - Word registration delay reduced to 0.05 seconds
+  - Optimized block movement with minimal attempts
+  - Support for both horizontal and vertical word formation for maximum scoring opportunities
+  - Concurrent processing of word finding and word formation
 
 ## File Structure
 
@@ -125,6 +122,7 @@ The test suite includes:
 - `test_word_order.py`: Tests basic word ordering functionality
 - `test_groups.py`: Tests grouping of related words
 - `test_word_extension.py`: Tests building upon existing words rather than rebuilding from scratch
+- `test_vertical_words.py`: Tests finding both horizontal and vertical words in Word Bites
 
 ## License
 

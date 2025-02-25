@@ -54,6 +54,8 @@ class WordBitesBoard:
         self.blocks: List[Block] = []
         # We'll maintain a grid of references to blocks for easy position-based lookup
         self.grid: List[List[Optional[Block]]] = [[None for _ in range(self.COLS)] for _ in range(self.ROWS)]
+        # Add a letter-to-blocks index for faster lookups
+        self.letter_to_blocks = {}  # Maps letter -> list of blocks containing that letter
     
     def is_valid_position(self, block: Block, row: int, col: int) -> bool:
         """Check if a block can be placed at the given position"""
@@ -92,6 +94,12 @@ class WordBitesBoard:
             self.grid[pos_row][pos_col] = block
             
         self.blocks.append(block)
+        
+        # Add to letter-to-blocks index
+        for letter in block.letters:
+            if letter not in self.letter_to_blocks:
+                self.letter_to_blocks[letter] = []
+            self.letter_to_blocks[letter].append(block)
         
         # After adding a block, optionally check for and combine touching blocks
         if combine:
@@ -155,6 +163,9 @@ class WordBitesBoard:
                 processed.add(block)
 
         # Clear the board and add all blocks back
+        # First, clear the letter-to-blocks index
+        self.letter_to_blocks.clear()
+        
         self.blocks.clear()
         self.grid = [[None for _ in range(self.COLS)] for _ in range(self.ROWS)]
         
@@ -186,6 +197,12 @@ class WordBitesBoard:
         for old_row, old_col in old_positions:
             self.grid[old_row][old_col] = None
         self.blocks.remove(block)
+        
+        # Remove from letter-to-blocks index
+        for letter in block.letters:
+            if letter in self.letter_to_blocks:
+                if block in self.letter_to_blocks[letter]:
+                    self.letter_to_blocks[letter].remove(block)
             
         # Check if new position is valid
         new_block = block.move_to(to_row, to_col)
@@ -198,18 +215,34 @@ class WordBitesBoard:
                 for pos_row, pos_col in old_positions:
                     self.grid[pos_row][pos_col] = block
                 self.blocks.append(block)
+                # Restore in letter-to-blocks index
+                for letter in block.letters:
+                    if letter not in self.letter_to_blocks:
+                        self.letter_to_blocks[letter] = []
+                    self.letter_to_blocks[letter].append(block)
                 return False
             if self.grid[new_row][new_col] is not None:
                 # Restore block to original position
                 for pos_row, pos_col in old_positions:
                     self.grid[pos_row][pos_col] = block
                 self.blocks.append(block)
+                # Restore in letter-to-blocks index
+                for letter in block.letters:
+                    if letter not in self.letter_to_blocks:
+                        self.letter_to_blocks[letter] = []
+                    self.letter_to_blocks[letter].append(block)
                 return False
         
         # Add to new positions
         for new_row, new_col in new_positions:
             self.grid[new_row][new_col] = new_block
         self.blocks.append(new_block)
+        
+        # Add to letter-to-blocks index
+        for letter in new_block.letters:
+            if letter not in self.letter_to_blocks:
+                self.letter_to_blocks[letter] = []
+            self.letter_to_blocks[letter].append(new_block)
             
         return True
     
@@ -224,6 +257,12 @@ class WordBitesBoard:
             self.grid[pos_row][pos_col] = None
             
         self.blocks.remove(block)
+        
+        # Remove from letter-to-blocks index
+        for letter in block.letters:
+            if letter in self.letter_to_blocks and block in self.letter_to_blocks[letter]:
+                self.letter_to_blocks[letter].remove(block)
+        
         return True
     
     def get_blocks_list_str(self) -> str:
@@ -289,6 +328,10 @@ class WordBitesBoard:
                 else:
                     current_row.append(" ")
             yield current_row
+
+    def get_blocks_by_letter(self, letter: str) -> List[Block]:
+        """Get all blocks containing the specified letter."""
+        return self.letter_to_blocks.get(letter, [])
 
 # Example usage:
 if __name__ == "__main__":

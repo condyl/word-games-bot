@@ -17,6 +17,7 @@ class MockBoard(WordBitesBoard):
         self.COLS = 8
         self.blocks = []
         self.moves_log = []
+        self.letter_to_blocks = {}  # Add this attribute for compatibility
         
         # Add some blocks to the board
         self.add_block(Block(BlockType.SINGLE, ['I'], (0, 0)))
@@ -29,6 +30,11 @@ class MockBoard(WordBitesBoard):
         
     def add_block(self, block):
         self.blocks.append(block)
+        # Update letter_to_blocks index
+        for letter in block.letters:
+            if letter not in self.letter_to_blocks:
+                self.letter_to_blocks[letter] = []
+            self.letter_to_blocks[letter].append(block)
     
     def get_block_at(self, row, col):
         for block in self.blocks:
@@ -40,6 +46,10 @@ class MockBoard(WordBitesBoard):
             if block.type == BlockType.VERTICAL and block.position == (row-1, col):
                 return block
         return None
+    
+    def get_blocks_by_letter(self, letter):
+        """Get all blocks containing the specified letter."""
+        return self.letter_to_blocks.get(letter, [])
     
     def __str__(self):
         return f"Mock Board with {len(self.blocks)} blocks"

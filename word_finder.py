@@ -220,27 +220,32 @@ def are_words_related(word1: str, word2: str) -> bool:
     For example, "UNTHINK" and "THINK" would not be considered related despite
     sharing a common stem, because "UNTHINK" has a leading "UN" that changes the meaning.
     """
-    # Convert to uppercase for consistency
-    word1 = word1.upper()
-    word2 = word2.upper()
-    
-    # If words are identical, they're related
+    # Early return for identical words
     if word1 == word2:
         return True
     
-    # Check if one word is a prefix of the other
-    if word1.startswith(word2) or word2.startswith(word1):
-        return True
+    # Convert to uppercase for consistency only if needed
+    if not word1.isupper():
+        word1 = word1.upper()
+    if not word2.isupper():
+        word2 = word2.upper()
     
-    # Check for common word stems
-    # Get the first 3-4 characters as a potential stem
+    # Early return for length difference > 4 (unlikely to be related)
+    if abs(len(word1) - len(word2)) > 4:
+        return False
+    
+    # Check if one word is a prefix of the other (fast check)
+    if len(word1) < len(word2):
+        return word2.startswith(word1)
+    elif len(word2) < len(word1):
+        return word1.startswith(word2)
+    
+    # For words of same length, check for common stem
+    # Only consider words related if they both start with the same stem
     min_length = min(len(word1), len(word2))
     if min_length >= 3:
         stem_length = min(4, min_length)
-        # Only consider words related if they both start with the same stem
-        # This prevents words with leading unrelated letters from being considered related
-        if word1[:stem_length] == word2[:stem_length]:
-            return True
+        return word1[:stem_length] == word2[:stem_length]
     
     return False
 
@@ -392,7 +397,7 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
         return True
     
     def try_form_word(word: str, row: int, start_col: int, board_copy: WordBitesBoard) -> Optional[List[Tuple[Block, Tuple[int, int]]]]:
-        """Try to form a word at the given position by moving blocks"""
+        """Try to form a word horizontally at the given position by moving blocks"""
         moves = []
         col = start_col
         
@@ -484,7 +489,100 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
         
         return moves if len(moves) > 0 else None
     
-    # Try forming words in each row
+    def try_form_vertical_word(word: str, start_row: int, col: int, board_copy: WordBitesBoard) -> Optional[List[Tuple[Block, Tuple[int, int]]]]:
+        """Try to form a word vertically at the given position by moving blocks"""
+        moves = []
+        row = start_row
+        
+        # First check if we have enough space for the word
+        if start_row + len(word) > board_copy.ROWS:
+            return None
+        
+        # For each letter in the word
+        i = 0
+        while i < len(word):
+            letter = word[i]
+            # Find a block containing this letter that we haven't used yet
+            available_blocks = [b for b in letter_to_blocks.get(letter, []) 
+                              if not any(b == m[0] for m in moves)]
+            
+            if not available_blocks:
+                return None  # Can't form word - missing required letter
+                
+            # Try each available block
+            placed = False
+            for block in available_blocks:
+                target_pos = None
+                
+                # If it's a vertical block
+                if block.type == BlockType.VERTICAL:
+                    # If this is the first letter of the block
+                    if block.letters[0] == letter:
+                        # Check if we have room for the second letter and it matches
+                        if i + 1 < len(word) and block.letters[1] == word[i + 1]:
+                            target_pos = (row, col)
+                            # Check if both positions are valid
+                            if (row + 1 < board_copy.ROWS and 
+                                board_copy.is_valid_position(block, row, col)):
+                                moves.append((block, target_pos))
+                                placed = True
+                                i += 2  # Skip next letter since we used both letters
+                                row += 2  # Skip next position
+                                break
+                    # If this is the second letter of the block
+                    elif block.letters[1] == letter and i > 0 and block.letters[0] == word[i - 1]:
+                        # We can only use this if the previous letter matches and wasn't placed yet
+                        if not moves or moves[-1][0] != block:
+                            target_pos = (row - 1, col)  # Position block one space up
+                            if (row > 0 and 
+                                board_copy.is_valid_position(block, row - 1, col)):
+                                moves.append((block, target_pos))
+                                placed = True
+                                row += 1
+                                break
+                
+                # If it's a horizontal block
+                elif block.type == BlockType.HORIZONTAL:
+                    if block.letters[0] == letter:
+                        target_pos = (row, col)
+                        # Check if we have room to the right
+                        if (col + 1 < board_copy.COLS and 
+                            board_copy.is_valid_position(block, row, col)):
+                            moves.append((block, target_pos))
+                            placed = True
+                            row += 1
+                            i += 1
+                            break
+                    elif block.letters[1] == letter:
+                        target_pos = (row, col - 1)  # Place it one column left
+                        # Check if we have room to the left
+                        if (col > 0 and 
+                            board_copy.is_valid_position(block, row, col - 1)):
+                            moves.append((block, target_pos))
+                            placed = True
+                            row += 1
+                            i += 1
+                            break
+                
+                # Single block
+                else:
+                    target_pos = (row, col)
+                    if board_copy.is_valid_position(block, row, col):
+                        moves.append((block, target_pos))
+                        placed = True
+                        row += 1
+                        i += 1
+                        break
+            
+            if not placed:
+                return None  # Couldn't place a block for this letter
+            
+            if i >= len(word):
+                break
+        
+        return moves if len(moves) > 0 else None
+    
+    # Try forming words horizontally in each row
     for row in range(board.ROWS):
         # Try each starting position in the row
         for start_col in range(board.COLS):
@@ -499,8 +597,29 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
                     word in found_moves):  # Skip if we already found this word
                     continue
                 
-                # Try to form this word
+                # Try to form this word horizontally
                 moves = try_form_word(word, row, start_col, board_copy)
+                if moves:
+                    # Only keep the first valid combination found for this word
+                    found_moves[word] = WordBitesMove(word=word, block_moves=moves)
+    
+    # Try forming words vertically in each column
+    for col in range(board.COLS):
+        # Try each starting position in the column
+        for start_row in range(board.ROWS):
+            # Create a copy of the board for testing moves
+            board_copy = deepcopy(board)
+            
+            # Try each valid word
+            for word in valid_words:
+                # Skip words that are too short, too long to fit, or already found
+                if (len(word) < min_length or 
+                    start_row + len(word) > board.ROWS or
+                    word in found_moves):  # Skip if we already found this word
+                    continue
+                
+                # Try to form this word vertically
+                moves = try_form_vertical_word(word, start_row, col, board_copy)
                 if moves:
                     # Only keep the first valid combination found for this word
                     found_moves[word] = WordBitesMove(word=word, block_moves=moves)
