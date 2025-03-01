@@ -201,69 +201,35 @@ def move_word_bites_block(block: Block, target_row: int, target_col: int, board:
         start_x, start_y = get_word_bites_position(from_row, from_col)
         end_x, end_y = get_word_bites_position(target_row, target_col)
         
-        # Calculate distance for drag
-        distance = ((end_x - start_x) ** 2 + (end_y - start_y) ** 2) ** 0.5
-        
-        # Determine number of steps based on distance - fewer steps for speed
-        num_steps = 0
-        if distance > 300:  # Only use intermediate points for very long drags
-            num_steps = 1
-        
-        # Try the move up to 2 times
-        for attempt in range(2):
-            try:
-                # Move mouse to block
-                move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (start_x, start_y), 0)
-                Quartz.CGEventPost(Quartz.kCGHIDEventTap, move)
-                time.sleep(0.005)  # Further reduced delay
-                
-                # Click and hold
-                down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (start_x, start_y), 0)
-                Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-                time.sleep(0.005)  # Further reduced delay
-                
-                # Use intermediate points only for longer drags
-                if num_steps > 0:
-                    # Just use a single intermediate point at the midpoint
-                    intermediate_x = start_x + (end_x - start_x) * 0.5
-                    intermediate_y = start_y + (end_y - start_y) * 0.5
-                    drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, 
-                                                        (intermediate_x, intermediate_y), 0)
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
-                    time.sleep(0.005)  # Further reduced delay
-                
-                # Final drag to target
-                drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, (end_x, end_y), 0)
-                Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
-                time.sleep(0.005)  # Further reduced delay
-                
-                # Release
-                up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (end_x, end_y), 0)
-                Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-                time.sleep(0.01)  # Further reduced delay after release
-                
-                # Verify the move was successful
-                success = board.move_block(from_row, from_col, target_row, target_col)
-                if success:
-                    return True
-                
-                # If we're on the last attempt, try a slightly different approach
-                if attempt == 1:
-                    # Try with slightly adjusted coordinates
-                    start_x += 3
-                    start_y += 3
-                    end_x += 3
-                    end_y += 3
-                
-                # Wait between attempts
-                time.sleep(0.03)  # Further reduced delay
-                
-            except Exception as e:
-                time.sleep(0.03)  # Further reduced delay
-        
-        return False
-        
+        # Try the move just once for speed
+        try:
+            # Move mouse to block - no delay
+            move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (start_x, start_y), 0)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, move)
+            
+            # Click and hold - minimal delay
+            down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (start_x, start_y), 0)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+            time.sleep(0.001)  # Minimal delay
+            
+            # Direct drag to target - no intermediate points
+            drag = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDragged, (end_x, end_y), 0)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag)
+            time.sleep(0.001)  # Minimal delay
+            
+            # Release
+            up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (end_x, end_y), 0)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+            
+            # Update the board state
+            board.move_block(from_row, from_col, target_row, target_col)
+            
+            return True
+        except Exception as e:
+            print(f"Error moving block: {str(e)}")
+            return False
     except Exception as e:
+        print(f"Error in move_word_bites_block: {str(e)}")
         return False
 
 def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve_word: bool = False) -> bool:
@@ -338,7 +304,7 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
             word_positions.add((row + 1, col))
     
     # Find blocks that are in the way
-    blocks_to_clear = set()  # Use a set to avoid duplicates
+    blocks_to_clear = set()
     for pos in word_positions:
         row, col = pos
         block = board.get_block_at(row, col)
@@ -360,7 +326,7 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
     blocks_to_clear = sorted(blocks_to_clear, key=lambda b: (-b.position[0], -b.position[1]))
     
     # Track temporary positions of cleared blocks
-    temp_positions = {}  # Map block -> temporary position
+    temp_positions = {}
     
     # Move blocking blocks to temporary positions
     for block in blocks_to_clear:
@@ -408,17 +374,10 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
                 break
         
         if temp_pos:
-            # Try up to 2 times to move the block to a temporary position
-            success = False
-            for attempt in range(2):
-                if move_word_bites_block(block, temp_pos[0], temp_pos[1], board):
-                    temp_positions[block] = orig_pos
-                    time.sleep(0.01)  # Further reduced delay after successful move
-                    success = True
-                    break
-                time.sleep(0.01)  # Further reduced delay between attempts
-            
-            if not success:
+            # Try to move the block to a temporary position
+            if move_word_bites_block(block, temp_pos[0], temp_pos[1], board):
+                temp_positions[block] = orig_pos
+            else:
                 restore_blocks(original_positions, board)
                 return False
         else:
@@ -436,15 +395,7 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
             continue
         
         # Try to move the block
-        attempts = 0
-        while attempts < 2:  # Reduced to 2 attempts
-            if move_word_bites_block(block, target_pos[0], target_pos[1], board):
-                time.sleep(0.005)  # Further reduced delay after successful move
-                break
-            attempts += 1
-            time.sleep(0.005)  # Further reduced delay between attempts
-        
-        if attempts == 2:
+        if not move_word_bites_block(block, target_pos[0], target_pos[1], board):
             success = False
             break
     
@@ -453,7 +404,7 @@ def execute_word_bites_move(move: WordBitesMove, board: WordBitesBoard, preserve
         restore_blocks(original_positions, board)
     elif not preserve_word:
         # Wait a bit to let the game register the word
-        time.sleep(0.05)  # Further reduced delay
+        time.sleep(0.02)  # Reduced delay
     
     return success
 

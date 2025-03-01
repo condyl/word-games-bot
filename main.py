@@ -70,7 +70,6 @@ def update_time_remaining():
 def main():
     try:
         global START_TIME, WORDS_FOUND, GAME_VERSION
-        START_TIME = time.time()
         words_found = 0
         
         print("Starting game...")
@@ -82,7 +81,6 @@ def main():
         time.sleep(2)  # Increased delay to ensure game is fully loaded
         
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(GAME_DURATION)
         
         # First identify the game version
         try:
@@ -118,63 +116,43 @@ def main():
 
         if board:
             print("Game Board captured successfully!")
+            
+            # Start the timer now that all setup is complete and gameplay is about to begin
+            START_TIME = time.time()
+            signal.alarm(GAME_DURATION)
+            print(f"Starting gameplay timer ({GAME_DURATION} seconds)...")
+            
             if game_version == "WORD_BITES":
                 print(board)  # Use the board's string representation
                 
-                # Use a priority queue and ThreadPoolExecutor for Word Bites
+                # First, find all possible words before starting to move any letters
+                print("Finding all Word Bites words first...")
+                all_moves = list(find_word_bites_words(board))
+                words_found = len(all_moves)
+                WORDS_FOUND = words_found
+                print(f"Found a total of {words_found} possible Word Bites words")
+                
+                # Optimize the word order for maximum efficiency
+                print("Optimizing word order...")
+                optimized_moves = optimize_word_order(all_moves)
+                
+                # Now set up the queue and start executing moves
                 move_queue = []
                 heap_lock = Lock()
-                words_found = 0
                 
-                # Buffer to collect words for batch processing
-                word_buffer = []
-                buffer_size = 10  # Process in batches of 10 words
-                
-                print("Starting Word Bites word finding...")
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    # Start the executor to process moves from the heap
-                    draw_future = executor.submit(execute_word_bites_moves_from_heap, move_queue, heap_lock, board)
-                    
-                    # Find words and add them to the queue as they're found
-                    for move in find_word_bites_words(board):
-                        words_found += 1
-                        # Update global WORDS_FOUND as we find words
-                        WORDS_FOUND = words_found
-                        word_buffer.append(move)
-                        
-                        # When buffer reaches size, process the batch
-                        if len(word_buffer) >= buffer_size:
-                            # Group related words together for better efficiency
-                            optimized_batch = optimize_word_order(word_buffer)
-                            
-                            # Add batch to queue
-                            for optimized_move in optimized_batch:
-                                with heap_lock:
-                                    heapq.heappush(move_queue, PrioritizedWordBitesMove(optimized_move))
-                            
-                            # Clear buffer
-                            word_buffer = []
-                            
-                            # Print progress
-                            print(f"Found {words_found} words so far...")
-                    
-                    # Process any remaining words in buffer
-                    if word_buffer:
-                        optimized_batch = optimize_word_order(word_buffer)
-                        for optimized_move in optimized_batch:
-                            with heap_lock:
-                                heapq.heappush(move_queue, PrioritizedWordBitesMove(optimized_move))
-                    
-                    # Print final count
-                    print(f"Found a total of {words_found} words")
-                    
-                    # Add sentinel value to signal completion
+                # Add all moves to the queue at once
+                for move in optimized_moves:
                     with heap_lock:
-                        heapq.heappush(move_queue, PrioritizedWordBitesMove(WordBitesMove("", [], 0)))
-                    
-                    print("Waiting for all moves to be processed...")
-                    # Wait for all moves to be processed
-                    draw_future.result()
+                        heapq.heappush(move_queue, PrioritizedWordBitesMove(move))
+                
+                print("Starting to form words...")
+                # Add sentinel value to signal completion
+                with heap_lock:
+                    heapq.heappush(move_queue, PrioritizedWordBitesMove(WordBitesMove("", [], 0)))
+                
+                # Now execute all the moves without any other processing happening
+                print("Executing all moves...")
+                execute_word_bites_moves_from_heap(move_queue, heap_lock, board)
                 
             elif game_version.startswith('ANAGRAM'):
                 # Print the anagram board
@@ -269,10 +247,14 @@ def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove]
     horizontal_words_count = 0
     total_score = 0
     
+    # Process counter for progress reporting
+    processed_count = 0
+    total_moves = len(move_heap) - 1  # Subtract 1 for sentinel
+    
     while True:
         with heap_lock:
             if not move_heap:
-                time.sleep(0.1)
+                time.sleep(0.05)  # Reduced sleep time
                 continue
             
             prioritized_move = heapq.heappop(move_heap)
@@ -287,10 +269,12 @@ def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove]
             break
         
         move = prioritized_move.move
+        processed_count += 1
         
-        # Log the word we're about to play
-        orientation = "VERTICAL" if move.is_vertical else "horizontal"
-        print(f"Playing {orientation} word: {move.word} ({move.score} pts)")
+        # Only log every 5th word to reduce console output overhead
+        if processed_count % 5 == 0 or processed_count == 1:
+            orientation = "VERTICAL" if move.is_vertical else "HORIZONTAL"
+            print(f"Playing word {processed_count}/{total_moves}: {move.word} ({move.score} pts) [{orientation}]")
         
         # Check if we can build upon the previous word
         if last_word and are_words_related(last_word, move.word):
@@ -309,7 +293,7 @@ def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove]
                 if modified_block_moves:
                     # Create a new move with just the blocks we need to add
                     from word_finder import WordBitesMove
-                    modified_move = WordBitesMove(move.word, modified_block_moves, move.score)
+                    modified_move = WordBitesMove(move.word, modified_block_moves, move.score, move.is_vertical, move.block_moves)
                     success = execute_word_bites_move(modified_move, board, True)
                 else:
                     # If no new blocks needed (shouldn't happen), use the original move
@@ -339,7 +323,7 @@ def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove]
                     last_word_blocks[pos] = actual_block
             
             # Use a shorter delay between words
-            time.sleep(0.03)  # Reduced delay between words
+            time.sleep(0.01)  # Further reduced delay between words
             
             # Update stats
             if move.is_vertical:
@@ -349,7 +333,7 @@ def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove]
             total_score += move.score
         else:
             # If we fail to form a word, wait a bit before trying the next one
-            time.sleep(0.03)  # Reduced delay after failure
+            time.sleep(0.01)  # Further reduced delay after failure
             # Reset last word tracking since we failed
             last_word = None
             last_word_blocks = {}
