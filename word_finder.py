@@ -193,6 +193,7 @@ class WordBitesMove:
     word: str
     block_moves: List[Tuple[Block, Tuple[int, int]]]  # List of (block, target_position) pairs
     score: int = 0
+    is_vertical: bool = False
 
     def __post_init__(self):
         # Calculate score based on word length
@@ -200,7 +201,14 @@ class WordBitesMove:
         if length in WORD_SCORES:
             self.score = WORD_SCORES[length]
         else:
-            self.score = 400 * (length - 2)  # Standard scoring formula for longer words
+            # For words longer than 9 letters (if any), use the pattern of +400 points per letter
+            # The pattern from the provided scores is:
+            # 7->8: +400 points
+            # 8->9: +400 points
+            self.score = 2600 + 400 * (length - 9)  # Base on 9-letter score
+        
+        # Note: We keep the is_vertical flag for prioritization in the search order
+        # but no longer add bonus points for vertical words
 
 def are_words_related(word1: str, word2: str) -> bool:
     """
@@ -581,31 +589,7 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3):
         
         return moves if len(moves) > 0 else None
     
-    # First, try to find words horizontally
-    # Try forming words horizontally in each row
-    for row in range(board.ROWS):
-        # Try each starting position in the row
-        for start_col in range(board.COLS):
-            # Create a copy of the board for testing moves
-            board_copy = deepcopy(board)
-            
-            # Try each valid word
-            for word in valid_words:
-                # Skip words that are too short, too long to fit, or already found
-                if (len(word) < min_length or 
-                    start_col + len(word) > board.COLS or
-                    word in found_words):  # Skip if we already found this word
-                    continue
-                
-                # Try to form this word horizontally
-                moves = try_form_word(word, row, start_col, board_copy)
-                if moves:
-                    # Create a WordBitesMove object
-                    move = WordBitesMove(word, moves)
-                    found_words.add(word)
-                    yield move
-    
-    # Then, try to find words vertically
+    # First, try to find words VERTICALLY (prioritized since the grid is 9 rows tall)
     # Try forming words vertically in each column
     for col in range(board.COLS):
         # Try each starting position in the column
@@ -625,7 +609,31 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3):
                 moves = try_form_vertical_word(word, start_row, col, board_copy)
                 if moves:
                     # Create a WordBitesMove object
-                    move = WordBitesMove(word, moves)
+                    move = WordBitesMove(word, moves, is_vertical=True)  # Mark as vertical
+                    found_words.add(word)
+                    yield move
+    
+    # Then, try to find words horizontally
+    # Try forming words horizontally in each row
+    for row in range(board.ROWS):
+        # Try each starting position in the row
+        for start_col in range(board.COLS):
+            # Create a copy of the board for testing moves
+            board_copy = deepcopy(board)
+            
+            # Try each valid word
+            for word in valid_words:
+                # Skip words that are too short, too long to fit, or already found
+                if (len(word) < min_length or 
+                    start_col + len(word) > board.COLS or
+                    word in found_words):  # Skip if we already found this word
+                    continue
+                
+                # Try to form this word horizontally
+                moves = try_form_word(word, row, start_col, board_copy)
+                if moves:
+                    # Create a WordBitesMove object
+                    move = WordBitesMove(word, moves, is_vertical=False)  # Mark as horizontal
                     found_words.add(word)
                     yield move
 

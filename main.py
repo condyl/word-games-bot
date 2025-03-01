@@ -36,7 +36,16 @@ class PrioritizedWordBitesMove:
     move: WordBitesMove = field(compare=False)
     
     def __init__(self, move: WordBitesMove):
-        self.priority = -move.score  # Negative score for max-heap behavior (highest score first)
+        # Negative score for max-heap behavior (highest score first)
+        self.priority = -move.score
+        
+        # Prioritize vertical words of the same length/score
+        # This ensures vertical words with the same score as horizontal words
+        # will be processed first, without changing their actual score
+        if move.is_vertical:
+            # Use a small priority boost that doesn't affect the actual score
+            self.priority -= 0.1  # Subtract a small value to increase precedence
+            
         self.move = move
 
 def timeout_handler(signum, frame):
@@ -255,6 +264,11 @@ def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove]
     last_word = None
     last_word_blocks = {}  # Maps position -> block
     
+    # Stats tracking
+    vertical_words_count = 0
+    horizontal_words_count = 0
+    total_score = 0
+    
     while True:
         with heap_lock:
             if not move_heap:
@@ -265,9 +279,18 @@ def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove]
         
         # Check for sentinel value
         if not prioritized_move.move.word:
+            # Print final stats before exiting
+            print(f"\nWord Bites stats:")
+            print(f"Vertical words: {vertical_words_count}")
+            print(f"Horizontal words: {horizontal_words_count}")
+            print(f"Total score: {total_score}")
             break
         
         move = prioritized_move.move
+        
+        # Log the word we're about to play
+        orientation = "VERTICAL" if move.is_vertical else "horizontal"
+        print(f"Playing {orientation} word: {move.word} ({move.score} pts)")
         
         # Check if we can build upon the previous word
         if last_word and are_words_related(last_word, move.word):
@@ -317,6 +340,13 @@ def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove]
             
             # Use a shorter delay between words
             time.sleep(0.03)  # Reduced delay between words
+            
+            # Update stats
+            if move.is_vertical:
+                vertical_words_count += 1
+            else:
+                horizontal_words_count += 1
+            total_score += move.score
         else:
             # If we fail to form a word, wait a bit before trying the next one
             time.sleep(0.03)  # Reduced delay after failure
