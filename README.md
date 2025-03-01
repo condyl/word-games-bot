@@ -3,6 +3,9 @@
 This project is a bot designed to play a word finder game. It captures the game board, identifies the game version, finds all valid words, and draws them on the screen.
 
 <img width="292" alt="image" src="https://github.com/user-attachments/assets/235b1f25-21ab-4823-91d9-7d27b928cddf" />
+<img width="297" alt="image" src="https://github.com/user-attachments/assets/ee912181-bda6-47f2-9913-1037050f2d0a" />
+<img width="299" alt="image" src="https://github.com/user-attachments/assets/2234036f-f0b7-454e-ad91-2dd79dd59783" />
+
 
 
 ## Features
