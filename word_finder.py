@@ -361,19 +361,18 @@ def optimize_word_order(moves_list: List[WordBitesMove]) -> List[WordBitesMove]:
     
     return result
 
-def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[WordBitesMove]:
+def find_word_bites_words(board: WordBitesBoard, min_length: int = 3):
     """
     Find all possible words that can be made in Word Bites by moving blocks around.
     Only keeps one combination per word (first one found) since points can only be earned once.
     Args:
         board: The Word Bites board
         min_length: Minimum word length to consider
-    Returns:
-        List of WordBitesMove objects describing how to form each word,
-        optimized to group related words together
+    Yields:
+        WordBitesMove objects describing how to form each word, as they are found
     """
     valid_words = load_word_lists()
-    found_moves = {}  # Use dict to track unique words
+    found_words = set()  # Use set to track unique words
     
     # Get all blocks and their letters
     blocks = board.blocks
@@ -582,6 +581,7 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
         
         return moves if len(moves) > 0 else None
     
+    # First, try to find words horizontally
     # Try forming words horizontally in each row
     for row in range(board.ROWS):
         # Try each starting position in the row
@@ -594,15 +594,18 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
                 # Skip words that are too short, too long to fit, or already found
                 if (len(word) < min_length or 
                     start_col + len(word) > board.COLS or
-                    word in found_moves):  # Skip if we already found this word
+                    word in found_words):  # Skip if we already found this word
                     continue
                 
                 # Try to form this word horizontally
                 moves = try_form_word(word, row, start_col, board_copy)
                 if moves:
-                    # Only keep the first valid combination found for this word
-                    found_moves[word] = WordBitesMove(word=word, block_moves=moves)
+                    # Create a WordBitesMove object
+                    move = WordBitesMove(word, moves)
+                    found_words.add(word)
+                    yield move
     
+    # Then, try to find words vertically
     # Try forming words vertically in each column
     for col in range(board.COLS):
         # Try each starting position in the column
@@ -615,20 +618,16 @@ def find_word_bites_words(board: WordBitesBoard, min_length: int = 3) -> List[Wo
                 # Skip words that are too short, too long to fit, or already found
                 if (len(word) < min_length or 
                     start_row + len(word) > board.ROWS or
-                    word in found_moves):  # Skip if we already found this word
+                    word in found_words):  # Skip if we already found this word
                     continue
                 
                 # Try to form this word vertically
                 moves = try_form_vertical_word(word, start_row, col, board_copy)
                 if moves:
-                    # Only keep the first valid combination found for this word
-                    found_moves[word] = WordBitesMove(word=word, block_moves=moves)
-    
-    # Convert dict to list
-    moves_list = list(found_moves.values())
-    
-    # Optimize the order of words to prioritize related words
-    return optimize_word_order(moves_list)
+                    # Create a WordBitesMove object
+                    move = WordBitesMove(word, moves)
+                    found_words.add(word)
+                    yield move
 
 def print_word_bites_moves(moves: List[WordBitesMove]):
     """Print found Word Bites words sorted by length and alphabetically."""

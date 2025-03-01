@@ -1,6 +1,6 @@
 from get_game_board import get_game_board
 from identify_game_version import identify_game_version
-from word_finder import find_words, find_anagrams, print_found_words, print_anagram_words, find_word_bites_words, print_word_bites_moves, WordBitesMove, are_words_related
+from word_finder import find_words, find_anagrams, print_found_words, print_anagram_words, find_word_bites_words, print_word_bites_moves, WordBitesMove, are_words_related, optimize_word_order
 from word_drawer import draw_word, click_anagram_word, execute_word_bites_move
 from press_start_button import focus_and_click_start
 import time
@@ -89,25 +89,50 @@ def main():
             print("Game Board:")
             if game_version == "WORD_BITES":
                 print(board)  # Use the board's string representation
-                # Find all possible words and their moves
-                moves = find_word_bites_words(board)
-                words_found = len(moves)
-                
-                # Print all found words and their required moves
-                print_word_bites_moves(moves)
                 
                 # Use a priority queue and ThreadPoolExecutor for Word Bites
                 move_queue = []
                 heap_lock = Lock()
+                words_found = 0
+                
+                # Buffer to collect words for batch processing
+                word_buffer = []
+                buffer_size = 10  # Process in batches of 10 words
                 
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     # Start the executor to process moves from the heap
                     draw_future = executor.submit(execute_word_bites_moves_from_heap, move_queue, heap_lock, board)
                     
-                    # Add all moves to the priority queue
-                    for move in moves:
-                        with heap_lock:
-                            heapq.heappush(move_queue, PrioritizedWordBitesMove(move))
+                    # Find words and add them to the queue as they're found
+                    for move in find_word_bites_words(board):
+                        words_found += 1
+                        word_buffer.append(move)
+                        
+                        # When buffer reaches size, process the batch
+                        if len(word_buffer) >= buffer_size:
+                            # Group related words together for better efficiency
+                            optimized_batch = optimize_word_order(word_buffer)
+                            
+                            # Add batch to queue
+                            for optimized_move in optimized_batch:
+                                with heap_lock:
+                                    heapq.heappush(move_queue, PrioritizedWordBitesMove(optimized_move))
+                            
+                            # Clear buffer
+                            word_buffer = []
+                            
+                            # Print progress
+                            print(f"Found {words_found} words so far...")
+                    
+                    # Process any remaining words in buffer
+                    if word_buffer:
+                        optimized_batch = optimize_word_order(word_buffer)
+                        for optimized_move in optimized_batch:
+                            with heap_lock:
+                                heapq.heappush(move_queue, PrioritizedWordBitesMove(optimized_move))
+                    
+                    # Print final count
+                    print(f"Found a total of {words_found} words")
                     
                     # Add sentinel value to signal completion
                     with heap_lock:
