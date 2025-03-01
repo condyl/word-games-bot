@@ -40,11 +40,17 @@ class PrioritizedWordBitesMove:
         self.move = move
 
 def timeout_handler(signum, frame):
+    # Calculate time elapsed
+    time_elapsed = time.time() - START_TIME
+    
     print("\nTime's up! Game summary:")
     print("------------------------")
-    print(f"Game version: {GAME_VERSION}")
+    if GAME_VERSION == "unknown":
+        print("Game version: Unknown - Game identification failed or timed out")
+    else:
+        print(f"Game version: {GAME_VERSION}")
     print(f"Words found: {WORDS_FOUND}")
-    print(f"Time played: {GAME_DURATION} seconds")
+    print(f"Time played: {time_elapsed:.1f} seconds (of {GAME_DURATION} seconds)")
     print("Program terminated.")
     os._exit(0)
 
@@ -54,39 +60,55 @@ def update_time_remaining():
 
 def main():
     try:
-        global START_TIME
+        global START_TIME, WORDS_FOUND, GAME_VERSION
         START_TIME = time.time()
         words_found = 0
         
+        print("Starting game...")
         if not focus_and_click_start():
-            print("Failed to start game")
+            print("Failed to start game - Could not find or click the start button")
             return
             
-        time.sleep(1)
+        print("Waiting for game to load...")
+        time.sleep(2)  # Increased delay to ensure game is fully loaded
         
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(GAME_DURATION)
         
         # First identify the game version
         try:
+            print("Identifying game version...")
             game_version = identify_game_version()
+            
+            # Handle the case where identify_game_version returns None
+            if game_version is None:
+                print("Failed to identify game version - No iPhone window found")
+                GAME_VERSION = "unknown - No iPhone window"
+                return
+            
+            GAME_VERSION = game_version
+            
             print(f"Detected game version: {game_version}")
             if game_version.startswith('unknown'):
-                print("Failed to identify game version")
+                print("Failed to identify game version - Unknown game type")
                 return
         except Exception as e:
             print(f"Failed to identify game version: {str(e)}")
+            print(f"Error details: {traceback.format_exc()}")
+            GAME_VERSION = f"unknown - Error: {str(e)}"
             return
         
         # Get the actual game board from screenshot
         try:
+            print(f"Capturing game board for {game_version}...")
             board = get_game_board(game_version)
         except Exception as e:
             print(f"Failed to capture game board: {str(e)}")
+            print(f"Error details: {traceback.format_exc()}")
             return
 
         if board:
-            print("Game Board:")
+            print("Game Board captured successfully!")
             if game_version == "WORD_BITES":
                 print(board)  # Use the board's string representation
                 
@@ -99,6 +121,7 @@ def main():
                 word_buffer = []
                 buffer_size = 10  # Process in batches of 10 words
                 
+                print("Starting Word Bites word finding...")
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     # Start the executor to process moves from the heap
                     draw_future = executor.submit(execute_word_bites_moves_from_heap, move_queue, heap_lock, board)
@@ -106,6 +129,8 @@ def main():
                     # Find words and add them to the queue as they're found
                     for move in find_word_bites_words(board):
                         words_found += 1
+                        # Update global WORDS_FOUND as we find words
+                        WORDS_FOUND = words_found
                         word_buffer.append(move)
                         
                         # When buffer reaches size, process the batch
@@ -138,20 +163,27 @@ def main():
                     with heap_lock:
                         heapq.heappush(move_queue, PrioritizedWordBitesMove(WordBitesMove("", [], 0)))
                     
+                    print("Waiting for all moves to be processed...")
                     # Wait for all moves to be processed
                     draw_future.result()
                 
             elif game_version.startswith('ANAGRAM'):
                 # Print the anagram board
                 print(' '.join(board[0]))  # Anagram board is a single row
+                print("Finding anagrams...")
                 found_words = find_anagrams(board, min_length=3)
                 words_found = len(found_words)
+                # Update global WORDS_FOUND for anagrams
+                WORDS_FOUND = words_found
                 
+                print(f"Found {words_found} anagrams. Starting to click words...")
                 sorted_words = sorted(found_words.keys(), key=lambda x: (-len(x), x))
                 
-                for word in sorted_words:
+                for i, word in enumerate(sorted_words):
+                    if i % 10 == 0:  # Print progress every 10 words
+                        print(f"Processed {i}/{len(sorted_words)} words...")
                     click_anagram_word(word, board, game_version)
-                    time.sleep(0.005)  # Further reduced delay between words
+                    time.sleep(0.01)  # Slightly increased delay between words
                 
                 print_anagram_words(found_words)
             else:
@@ -163,6 +195,7 @@ def main():
                 word_paths = {}
                 heap_lock = Lock()
                 
+                print(f"Starting word hunt for {game_version}...")
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     draw_future = executor.submit(draw_words_from_heap, word_queue, heap_lock, game_version)
                     
@@ -170,9 +203,15 @@ def main():
                         if word not in word_paths:
                             word_paths[word] = path
                             words_found += 1
+                            # Update global WORDS_FOUND as we find words
+                            WORDS_FOUND = words_found
                             with heap_lock:
                                 heapq.heappush(word_queue, PrioritizedWord(word, path))
+                            
+                            if words_found % 20 == 0:  # Print progress every 20 words
+                                print(f"Found {words_found} words so far...")
                     
+                    print(f"Found a total of {words_found} words. Starting to draw words...")
                     with heap_lock:
                         heapq.heappush(word_queue, PrioritizedWord("", []))  # Sentinel value
                     
@@ -180,17 +219,16 @@ def main():
                 
                 print_found_words(word_paths)
             
-            # Update global variables for timeout handler
-            global WORDS_FOUND, GAME_VERSION
-            WORDS_FOUND = words_found
-            GAME_VERSION = game_version
-            
         else:
-            print("Failed to get game board")
+            print("Failed to get game board - Board detection returned None")
             
     except KeyboardInterrupt:
         print("\nProgram interrupted by user")
         os._exit(0)
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        print(f"Error details: {traceback.format_exc()}")
+        os._exit(1)
     finally:
         signal.alarm(0)
 
