@@ -25,9 +25,16 @@ pip install -r requirements.txt
 
 1. Mirror your iPhone to your Mac
 2. Open Game Pigeon and start a word game
-3. Run the bot:
+3. Run the bot with optional arguments:
 ```sh
+# Normal mode - finds all possible words
 python main.py
+
+# Realistic mode - limits scores to human-like levels
+python main.py --realistic
+
+# Target score mode - aims for a specific score
+python main.py --target 10000
 ```
 
 ## Features
@@ -36,6 +43,7 @@ python main.py
 - Word finding and drawing
 - Support for all game modes
 - Realistic mode for human-like scores
+- Target score mode for custom score limits
 - Optimized word selection and drawing
 
 ## License

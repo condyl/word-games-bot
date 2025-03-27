@@ -22,6 +22,8 @@ from collections import defaultdict
 parser = argparse.ArgumentParser(description='Game Pigeon Word Game Solver')
 parser.add_argument('--realistic', '-r', action='store_true', 
                     help='Enable realistic mode with human-like scores (15k-25k for Word Hunt, 20k-40k for Word Bites)')
+parser.add_argument('--target', '-t', type=int,
+                    help='Set target score for the game (overrides realistic mode ranges)')
 args = parser.parse_args()
 
 # Global variables
@@ -30,6 +32,7 @@ GAME_VERSION = "unknown"
 TIME_REMAINING = 90  # Track time remaining
 START_TIME = 0  # Track start time globally
 REALISTIC_MODE = False  # Default to perfect mode
+TARGET_SCORE = None  # Track target score if specified
 
 # Word Hunt target scores for realistic mode
 WORD_HUNT_MIN_SCORE = 17500
@@ -98,10 +101,14 @@ def apply_realistic_mode_word_hunt(all_words):
     total_possible_score = calculate_score(all_words)
     print(f"Total possible score: {total_possible_score}")
     
-    # Determine target score within realistic range
-    target_score = random.randint(WORD_HUNT_MIN_SCORE, WORD_HUNT_MAX_SCORE)
-    target_score = min(target_score, total_possible_score * 0.8)
-    print(f"Target score for realistic mode: {target_score}")
+    # Determine target score
+    if TARGET_SCORE is not None:
+        target_score = min(TARGET_SCORE, total_possible_score * 0.8)
+        print(f"Using specified target score: {target_score}")
+    else:
+        target_score = random.randint(WORD_HUNT_MIN_SCORE, WORD_HUNT_MAX_SCORE)
+        target_score = min(target_score, total_possible_score * 0.8)
+        print(f"Target score for realistic mode: {target_score}")
 
     def find_common_substrings(words, min_length=3):
         """
@@ -258,28 +265,24 @@ def apply_realistic_mode_word_hunt(all_words):
 
 def apply_realistic_mode_word_bites(all_moves):
     """
-    Apply realistic mode filtering to Word Bites moves.
-    
-    This function:
-    1. Calculates the total possible score
-    2. Determines a target score within the realistic range
-    3. Selects words to reach that target score, with a bias toward including related words
-    4. Randomizes the selection somewhat to make it more human-like
-    
-    Args:
-        all_moves: List of all possible WordBitesMove objects
-        
-    Returns:
-        List of selected WordBitesMove objects
+    Apply realistic mode filtering to Word Bites moves with improved word selection.
+    Focuses on common substrings and word families to create more natural word patterns.
     """
+    from word_finder import calculate_score
+    from collections import defaultdict
+    
     # Calculate total possible score
     total_possible_score = sum(move.score for move in all_moves)
     print(f"Total possible score: {total_possible_score}")
     
-    # Determine target score within realistic range
-    target_score = random.randint(WORD_BITES_MIN_SCORE, WORD_BITES_MAX_SCORE)
-    target_score = min(target_score, total_possible_score * 0.8)  # Don't exceed 80% of possible score
-    print(f"Target score for realistic mode: {target_score}")
+    # Determine target score
+    if TARGET_SCORE is not None:
+        target_score = min(TARGET_SCORE, total_possible_score * 0.8)
+        print(f"Using specified target score: {target_score}")
+    else:
+        target_score = random.randint(WORD_BITES_MIN_SCORE, WORD_BITES_MAX_SCORE)
+        target_score = min(target_score, total_possible_score * 0.8)
+        print(f"Target score for realistic mode: {target_score}")
     
     # Group moves by word length
     moves_by_length = {}
@@ -485,16 +488,29 @@ def apply_realistic_mode_word_bites(all_moves):
 
 def main():
     try:
-        global START_TIME, WORDS_FOUND, GAME_VERSION, REALISTIC_MODE
+        global START_TIME, WORDS_FOUND, GAME_VERSION, REALISTIC_MODE, TARGET_SCORE
         words_found = 0
         
-        # Set realistic mode from command line arguments
-        REALISTIC_MODE = args.realistic
+        # Set target score if specified
+        if args.target is not None:
+            TARGET_SCORE = args.target
+            print(f"Target score set to: {TARGET_SCORE}")
+            # Enable realistic mode if target score is specified
+            REALISTIC_MODE = True
+            print("Target score specified - enabling realistic mode")
+        
+        # Set realistic mode if specified
+        if args.realistic:
+            REALISTIC_MODE = True
+            print("Realistic mode enabled")
         
         if REALISTIC_MODE:
             print("Running in REALISTIC mode - scores will be limited to human-like levels")
-            print(f"Word Hunt target: {WORD_HUNT_MIN_SCORE}-{WORD_HUNT_MAX_SCORE} points")
-            print(f"Word Bites target: {WORD_BITES_MIN_SCORE}-{WORD_BITES_MAX_SCORE} points")
+            if TARGET_SCORE is not None:
+                print(f"Target score: {TARGET_SCORE} points")
+            else:
+                print(f"Word Hunt target: {WORD_HUNT_MIN_SCORE}-{WORD_HUNT_MAX_SCORE} points")
+                print(f"Word Bites target: {WORD_BITES_MIN_SCORE}-{WORD_BITES_MAX_SCORE} points")
         else:
             print("Running in PERFECT mode - will find all possible words")
         
