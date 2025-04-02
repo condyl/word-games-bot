@@ -1,5 +1,6 @@
 import Quartz
 import time
+from config import IPHONE_WINDOW_KEYWORDS
 
 def get_iphone_window():
     """Get the iPhone mirroring window position and dimensions."""
@@ -9,8 +10,12 @@ def get_iphone_window():
     )
     
     for window in windows:
-        name = window.get(Quartz.kCGWindowName, '')
-        if name and "iPhone" in name:
+        title = window.get(Quartz.kCGWindowName, '')
+        owner = window.get(Quartz.kCGWindowOwnerName, '')
+        
+        if any(keyword.lower() in str(title).lower() or 
+               keyword.lower() in str(owner).lower() 
+               for keyword in IPHONE_WINDOW_KEYWORDS):
             bounds = window.get(Quartz.kCGWindowBounds)
             return {
                 'x': bounds['X'],
