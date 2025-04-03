@@ -4,7 +4,8 @@ A Python bot that automatically solves word games in Game Pigeon. Supports Word 
 
 <img width="292" alt="image" src="https://github.com/user-attachments/assets/235b1f25-21ab-4823-91d9-7d27b928cddf" />
 <img width="297" alt="image" src="https://github.com/user-attachments/assets/ee912181-bda6-47f2-9913-1037050f2d0a" />
-<img width="299" alt="image" src="https://github.com/user-attachments/assets/2234036f-f0b7-454e-ad91-2dd79dd59783" />
+<img width="299" alt="image" src="https://github.com/user-attachments/assets/8f121c47-7fc1-40f9-a89c-5ab5f330b100" />
+
 
 ## Requirements
 
