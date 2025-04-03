@@ -34,9 +34,9 @@ def find_iphone_window():
                 
     return None
 
-def find_game_board(image, game_version):
+def find_game_board(image, game_version, save_debug=False):
     # Create debug directory if it doesn't exist
-    if not os.path.exists('debug'):
+    if save_debug and not os.path.exists('debug'):
         os.makedirs('debug')
         
     opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
@@ -93,9 +93,10 @@ def find_game_board(image, game_version):
         )
         cropped = padded
     
-    # Save cropped image with timestamp
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    cv2.imwrite(f'debug/board_{timestamp}.png', cropped)
+    # Save cropped image with timestamp only if requested
+    if save_debug:
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        cv2.imwrite(f'debug/board_{timestamp}.png', cropped)
     
     return cropped
 
@@ -222,7 +223,7 @@ def is_mostly_blue(cell_image):
     
     return blue_percentage > 0.5  # Return True if more than 50% is blue
 
-def get_game_board(game_version="4x4"):
+def get_game_board(game_version="4x4", save_debug=False):
     """Returns the current game board as a 2D list of letters"""
     window_bounds = find_iphone_window()
     if not window_bounds:
@@ -291,12 +292,12 @@ def get_game_board(game_version="4x4"):
         screenshot = screenshot.crop(crop_box)
     
     # Find and crop game board
-    board_image = find_game_board(screenshot, game_version)
+    board_image = find_game_board(screenshot, game_version, save_debug)
     if board_image is None:
         return None
         
     # Create debug directory if it doesn't exist
-    if not os.path.exists('debug'):
+    if save_debug and not os.path.exists('debug'):
         os.makedirs('debug')
     
     # Get dimensions and process cells
@@ -314,8 +315,8 @@ def get_game_board(game_version="4x4"):
         
         # Create timestamped folder for this board's cells
         timestamp = time.strftime("%Y%m%d-%H%M%S")
-        cells_folder = f'debug/cells_{timestamp}'
-        if not os.path.exists(cells_folder):
+        cells_folder = f'debug/cells_{timestamp}' if save_debug else None
+        if save_debug and not os.path.exists(cells_folder):
             os.makedirs(cells_folder)
         
         # Create a copy of the image for grid lines
@@ -331,7 +332,8 @@ def get_game_board(game_version="4x4"):
             x = int(j * (width / board.COLS))
             cv2.line(debug_image, (x, 0), (x, height), (0, 255, 0), 1)
             
-        cv2.imwrite(f'{cells_folder}/grid_lines.png', debug_image)
+        if save_debug:
+            cv2.imwrite(f'{cells_folder}/grid_lines.png', debug_image)
         
         # Process each cell
         for i in range(board.ROWS):  # 9 rows
@@ -351,8 +353,9 @@ def get_game_board(game_version="4x4"):
                     x1 + h_margin:x2 - h_margin
                 ]
                 
-                # Save the cell
-                cv2.imwrite(f'{cells_folder}/cell_{i}_{j}.png', cell)
+                # Save the cell only if debug is enabled
+                if save_debug:
+                    cv2.imwrite(f'{cells_folder}/cell_{i}_{j}.png', cell)
                 
                 # Skip if cell is mostly blue background
                 if is_mostly_blue(cell):
@@ -393,15 +396,16 @@ def get_game_board(game_version="4x4"):
             # Apply padding to each cell
             cell = board_image[v_padding:height-v_padding, x+h_padding:x+cell_width-h_padding]
             
-            # Save the cell with margins
-            timestamp = time.strftime("%Y%m%d-%H%M%S")
-            cells_folder = f'debug/cells_{timestamp}'
-            if not os.path.exists(cells_folder):
-                os.makedirs(cells_folder)
-            cv2.imwrite(f'{cells_folder}/cell_0_{j}_margins.png', cell)
+            # Save the cell with margins only if debug is enabled
+            if save_debug:
+                timestamp = time.strftime("%Y%m%d-%H%M%S")
+                cells_folder = f'debug/cells_{timestamp}'
+                if not os.path.exists(cells_folder):
+                    os.makedirs(cells_folder)
+                cv2.imwrite(f'{cells_folder}/cell_0_{j}_margins.png', cell)
             
             # Process the cell
-            letter = process_cell(cell, 0, j, cells_folder)
+            letter = process_cell(cell, 0, j, cells_folder if save_debug else None)
             row.append(letter)
         
         return [row]  # Return as a single-row grid for consistency
@@ -413,10 +417,10 @@ def get_game_board(game_version="4x4"):
         elif game_version == "O":
             empty_cells = {(0,0), (0,4), (2,2), (4,0), (4,4)}
         
-        # Create timestamped folder for this board's cells
+        # Create timestamped folder for this board's cells only if debug is enabled
         timestamp = time.strftime("%Y%m%d-%H%M%S")
-        cells_folder = f'debug/cells_{timestamp}'
-        if not os.path.exists(cells_folder):
+        cells_folder = f'debug/cells_{timestamp}' if save_debug else None
+        if save_debug and not os.path.exists(cells_folder):
             os.makedirs(cells_folder)
         
         # Determine grid size based on game version
@@ -447,8 +451,9 @@ def get_game_board(game_version="4x4"):
                 margin = 16
                 cell = board_image[y+margin:y+cell_height-margin, x+margin:x+cell_width-margin]
                 
-                # Save the cell with margins
-                cv2.imwrite(f'{cells_folder}/cell_{i}_{j}_margins.png', cell)
+                # Save the cell with margins only if debug is enabled
+                if save_debug:
+                    cv2.imwrite(f'{cells_folder}/cell_{i}_{j}_margins.png', cell)
                 
                 # Process the cell
                 letter = process_cell(cell, i, j, cells_folder)

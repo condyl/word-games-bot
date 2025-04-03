@@ -37,10 +37,10 @@ def find_iphone_window():
                 
     return None
 
-def identify_game_version():
+def identify_game_version(save_debug=False):
     try:
         # Create debug directory if it doesn't exist
-        if not os.path.exists('debug'):
+        if save_debug and not os.path.exists('debug'):
             os.makedirs('debug')
         
         print("Looking for iPhone window...")
@@ -85,10 +85,11 @@ def identify_game_version():
         
         screenshot = PIL.Image.frombytes('RGBA', (width, height), pixeldata, 'raw', 'BGRA')
         
-        # Save debug image
-        debug_path = os.path.join('debug', 'game_screenshot.png')
-        screenshot.save(debug_path)
-        print(f"Saved debug screenshot to {debug_path}")
+        # Save debug image only if requested
+        if save_debug:
+            debug_path = os.path.join('debug', 'game_screenshot.png')
+            screenshot.save(debug_path)
+            print(f"Saved debug screenshot to {debug_path}")
         
         # Convert to OpenCV format and HSV
         opencv_image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
@@ -106,10 +107,11 @@ def identify_game_version():
         purple_mask = cv2.inRange(hsv, lower_purple, upper_purple)
         blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
         
-        # Save debug masks
-        cv2.imwrite(os.path.join('debug', 'green_mask.png'), green_mask)
-        cv2.imwrite(os.path.join('debug', 'purple_mask.png'), purple_mask)
-        cv2.imwrite(os.path.join('debug', 'blue_mask.png'), blue_mask)
+        # Save debug masks only if requested
+        if save_debug:
+            cv2.imwrite(os.path.join('debug', 'green_mask.png'), green_mask)
+            cv2.imwrite(os.path.join('debug', 'purple_mask.png'), purple_mask)
+            cv2.imwrite(os.path.join('debug', 'blue_mask.png'), blue_mask)
         
         # Check which color has more pixels
         green_pixels = np.sum(green_mask > 0)
@@ -148,8 +150,9 @@ def identify_game_version():
             crop_start = int(height * 0.4)
             cropped_mask = active_mask[crop_start:, :]
         
-        # Save cropped mask for debugging
-        cv2.imwrite(os.path.join('debug', 'cropped_mask.png'), cropped_mask)
+        # Save cropped mask for debugging only if requested
+        if save_debug:
+            cv2.imwrite(os.path.join('debug', 'cropped_mask.png'), cropped_mask)
         
         # Count cells
         inverted_mask = cv2.bitwise_not(cropped_mask)

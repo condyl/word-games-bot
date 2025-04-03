@@ -24,6 +24,8 @@ parser.add_argument('--realistic', '-r', action='store_true',
                     help='Enable realistic mode with human-like scores (15k-25k for Word Hunt, 20k-40k for Word Bites)')
 parser.add_argument('--target', '-t', type=int,
                     help='Set target score for the game (overrides realistic mode ranges)')
+parser.add_argument('--debug', '-d', action='store_true',
+                    help='Save debug screenshots during gameplay')
 args = parser.parse_args()
 
 # Global variables
@@ -33,6 +35,7 @@ TIME_REMAINING = 90  # Track time remaining
 START_TIME = 0  # Track start time globally
 REALISTIC_MODE = False  # Default to perfect mode
 TARGET_SCORE = None  # Track target score if specified
+SAVE_DEBUG_SCREENSHOTS = False  # Track whether to save debug screenshots
 
 # Word Hunt target scores for realistic mode
 WORD_HUNT_MIN_SCORE = 17500
@@ -488,7 +491,7 @@ def apply_realistic_mode_word_bites(all_moves):
 
 def main():
     try:
-        global START_TIME, WORDS_FOUND, GAME_VERSION, REALISTIC_MODE, TARGET_SCORE
+        global START_TIME, WORDS_FOUND, GAME_VERSION, REALISTIC_MODE, TARGET_SCORE, SAVE_DEBUG_SCREENSHOTS
         words_found = 0
         
         # Set target score if specified
@@ -503,6 +506,13 @@ def main():
         if args.realistic:
             REALISTIC_MODE = True
             print("Realistic mode enabled")
+            
+        # Set debug screenshots if specified
+        SAVE_DEBUG_SCREENSHOTS = args.debug
+        if SAVE_DEBUG_SCREENSHOTS:
+            print("Debug screenshots enabled")
+        else:
+            print("Debug screenshots disabled")
         
         if REALISTIC_MODE:
             print("Running in REALISTIC mode - scores will be limited to human-like levels")
@@ -526,7 +536,7 @@ def main():
         
         try:
             print("Identifying game version...")
-            game_version = identify_game_version()
+            game_version = identify_game_version(save_debug=SAVE_DEBUG_SCREENSHOTS)
             
             if game_version is None:
                 print("Failed to identify game version - No iPhone window found")
@@ -546,7 +556,7 @@ def main():
         
         try:
             print(f"Capturing game board for {game_version}...")
-            board = get_game_board(game_version)
+            board = get_game_board(game_version, save_debug=SAVE_DEBUG_SCREENSHOTS)
         except Exception as e:
             print(f"Failed to capture game board: {str(e)}")
             print(f"Error details: {traceback.format_exc()}")
@@ -946,7 +956,7 @@ def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove]
         processed_count += 1
         
         # Only log every 5th word to reduce console output overhead
-        if processed_count % 5 == 0 or processed_count == 1:
+        if processed_count % 10 == 0 or processed_count == 1:
             orientation = "VERTICAL" if move.is_vertical else "HORIZONTAL"
             print(f"Playing word {processed_count}/{total_moves}: {move.word} ({move.score} pts) [{orientation}]")
         

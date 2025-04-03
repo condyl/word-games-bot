@@ -35,6 +35,9 @@ python main.py --realistic
 
 # Target score mode - aims for a specific score
 python main.py --target 10000
+
+# Debug mode - saves screenshots and processing images
+python main.py --debug
 ```
 
 ## Features
@@ -44,6 +47,7 @@ python main.py --target 10000
 - Support for all game modes
 - Realistic mode for human-like scores
 - Target score mode for custom score limits
+- Debug mode for troubleshooting
 - Optimized word selection and drawing
 
 ## License
