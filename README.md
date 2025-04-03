@@ -28,16 +28,30 @@ pip install -r requirements.txt
 3. Run the bot with optional arguments:
 ```sh
 # Normal mode - finds all possible words
-python main.py
+python src/main.py
 
 # Realistic mode - limits scores to human-like levels
-python main.py --realistic
+python src/main.py --realistic
 
 # Target score mode - aims for a specific score
-python main.py --target 10000
+python src/main.py --target 10000
 
 # Debug mode - saves screenshots and processing images
-python main.py --debug
+python src/main.py --debug
+```
+
+## Project Structure
+
+```
+game-pigeon-winner/
+├── src/                    # Source code
+│   ├── game/              # Game-specific modules
+│   ├── config/            # Configuration files
+│   └── utils/             # Utility functions
+├── scripts/               # Utility scripts
+├── tests/                 # Test files
+├── word_lists/           # Word list files
+└── requirements.txt      # Python dependencies
 ```
 
 ## Features

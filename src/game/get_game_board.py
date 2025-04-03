@@ -1,38 +1,15 @@
-import Quartz
-import pyautogui
+import os
 import time
-from PIL import Image
 import numpy as np
 import cv2
+import Quartz
 import easyocr
-import os
 import argparse
-from word_bites_board import WordBitesBoard, Block, BlockType
+from src.game.word_bites_board import WordBitesBoard, Block, BlockType
+from src.utils.window import find_iphone_window
 
 # Initialize EasyOCR reader globally (it's slow to initialize)
 READER = easyocr.Reader(['en'], gpu=False)
-
-def find_iphone_window():
-    # List of possible window title keywords for iPhone mirroring
-    iphone_keywords = ['iPhone', 'iOS', 'QuickTime Player']
-    
-    # Get all windows
-    windows = Quartz.CGWindowListCopyWindowInfo(
-        Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements,
-        Quartz.kCGNullWindowID
-    )
-    
-    # Check if this is an iPhone window
-    for window in windows:
-        title = window.get(Quartz.kCGWindowName, 'Unknown')
-        owner = window.get(Quartz.kCGWindowOwnerName, 'Unknown')
-        
-        for keyword in iphone_keywords:
-            if (keyword.lower() in str(title).lower() or 
-                keyword.lower() in str(owner).lower()):
-                return window.get(Quartz.kCGWindowBounds)
-                
-    return None
 
 def find_game_board(image, game_version, save_debug=False):
     # Create debug directory if it doesn't exist
@@ -190,10 +167,10 @@ def process_cell(cell, row, col, cells_folder=None):
 def move_mouse_away(window_bounds):
     """Move mouse just above the game board"""
     # Get window position
-    window_x = window_bounds['X']
-    window_y = window_bounds['Y']
-    window_height = window_bounds['Height']
-    window_width = window_bounds['Width']
+    window_x = window_bounds['x']
+    window_y = window_bounds['y']
+    window_height = window_bounds['height']
+    window_width = window_bounds['width']
     
     # Calculate position just above the game board
     # Using same ratios as board detection but slightly higher
@@ -242,8 +219,8 @@ def get_game_board(game_version="4x4", save_debug=False):
         aspect_ratio = 9/19.5
         
         # Get window dimensions
-        window_width = int(window_bounds['Width'])
-        window_height = int(window_bounds['Height'])
+        window_width = int(window_bounds['width'])
+        window_height = int(window_bounds['height'])
         
         # Adjust capture region to maintain aspect ratio
         target_height = window_height
@@ -251,16 +228,16 @@ def get_game_board(game_version="4x4", save_debug=False):
         
         # Center the capture region
         x_offset = (window_width - target_width) // 2
-        x = int(window_bounds['X']) + x_offset
-        y = int(window_bounds['Y'])
+        x = int(window_bounds['x']) + x_offset
+        y = int(window_bounds['y'])
         width = target_width
         height = target_height
     else:
         # Normal padding-based capture for non-anagram modes
-        x = int(window_bounds['X']) + padding
-        y = int(window_bounds['Y']) + padding
-        width = int(window_bounds['Width']) - (2 * padding)
-        height = int(window_bounds['Height']) - (2 * padding)
+        x = int(window_bounds['x']) + padding
+        y = int(window_bounds['y']) + padding
+        width = int(window_bounds['width']) - (2 * padding)
+        height = int(window_bounds['height']) - (2 * padding)
     
     # Create CGImage
     region = Quartz.CGRectMake(x, y, width, height)

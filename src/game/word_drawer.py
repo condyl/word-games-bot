@@ -1,36 +1,18 @@
-import time
+
 from typing import List, Tuple
 import Quartz
-from word_bites_board import WordBitesBoard, Block, BlockType
-from word_finder import WordBitesMove, are_words_related
-
-def get_iphone_window():
-    """Get the iPhone mirroring window position and dimensions."""
-    # Get all windows
-    windows = Quartz.CGWindowListCopyWindowInfo(
-        Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements,
-        Quartz.kCGNullWindowID
-    )
-    
-    # Find iPhone window
-    for window in windows:
-        name = window.get(Quartz.kCGWindowName, '')
-        if name and "iPhone" in name:
-            bounds = window.get(Quartz.kCGWindowBounds)
-            return {
-                'x': bounds['X'],
-                'y': bounds['Y'],
-                'width': bounds['Width'],
-                'height': bounds['Height']
-            }
-    return None
+from src.game.word_bites_board import WordBitesBoard, Block, BlockType
+from src.game.word_finder import WordBitesMove
+from src.utils.window import find_iphone_window
+from threading import Lock
+import time
 
 def get_letter_position(x: int, y: int, game_version: str = "4x4") -> Tuple[int, int]:
     """
     Convert board coordinates to screen coordinates.
     Note: Input coordinates are (row, col) format
     """
-    window = get_iphone_window()
+    window = find_iphone_window()
     if not window:
         raise Exception("iPhone window not found")
     
@@ -74,7 +56,7 @@ def get_anagram_letter_position(x: int, y: int, game_version: str) -> Tuple[int,
     Convert anagram board coordinates to screen coordinates.
     Note: Input coordinates are (row, col) format
     """
-    window = get_iphone_window()
+    window = find_iphone_window()
     if not window:
         raise Exception("iPhone window not found")
     
@@ -117,7 +99,7 @@ def get_word_bites_position(row: int, col: int) -> Tuple[int, int]:
     - row: vertical position (0 at top, increasing downward)
     - col: horizontal position (0 at left, increasing rightward)
     """
-    window = get_iphone_window()
+    window = find_iphone_window()
     if not window:
         raise Exception("iPhone window not found")
     
@@ -642,7 +624,7 @@ def click_anagram_word(word: str, board: List[List[str]], game_version: str):
     if not word:
         return
     
-    window = get_iphone_window()
+    window = find_iphone_window()
     if not window:
         raise Exception("iPhone window not found")
     

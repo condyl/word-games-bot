@@ -1,35 +1,12 @@
 import Quartz
 import time
-from config import IPHONE_WINDOW_KEYWORDS
-
-def get_iphone_window():
-    """Get the iPhone mirroring window position and dimensions."""
-    windows = Quartz.CGWindowListCopyWindowInfo(
-        Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements,
-        Quartz.kCGNullWindowID
-    )
-    
-    for window in windows:
-        title = window.get(Quartz.kCGWindowName, '')
-        owner = window.get(Quartz.kCGWindowOwnerName, '')
-        
-        if any(keyword.lower() in str(title).lower() or 
-               keyword.lower() in str(owner).lower() 
-               for keyword in IPHONE_WINDOW_KEYWORDS):
-            bounds = window.get(Quartz.kCGWindowBounds)
-            return {
-                'x': bounds['X'],
-                'y': bounds['Y'],
-                'width': bounds['Width'],
-                'height': bounds['Height']
-            }
-    return None
+from src.utils.window import find_iphone_window
 
 def focus_and_click_start():
-    """Focus the iPhone window and click the start button."""
-    window = get_iphone_window()
+    """Focus on the iPhone window and click the start button."""
+    window = find_iphone_window()
     if not window:
-        print("iPhone window not found")
+        print("Could not find iPhone window")
         return False
         
     # Calculate position for both game types

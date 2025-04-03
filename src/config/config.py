@@ -1,3 +1,5 @@
+import os
+
 # Game timing constants
 GAME_DURATION = 80  # seconds
 MIN_WORD_LENGTH = 3
@@ -30,9 +32,17 @@ WORD_SCORES = {
     6: 1400,
     7: 1800,
     8: 2200,
-    9: 2600
+    9: 2600,
+    10: 3000,
+    11: 3400,
+    12: 3800,
+    13: 4200,
+    14: 4600,
+    15: 5000,
+    16: 5400
 }
 
-# File paths
-WORD_LIST_PATH = 'word_lists/collins-word-list-2019-filtered.txt'
+# Word list path
+WORD_LIST_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'word_lists/collins-word-list-2019-filtered.txt')
+
 DEBUG_DIR = 'debug' 

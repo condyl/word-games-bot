@@ -1,8 +1,9 @@
-from get_game_board import get_game_board
-from identify_game_version import identify_game_version
-from word_finder import find_words, find_anagrams, print_found_words, print_anagram_words, find_word_bites_words, print_word_bites_moves, WordBitesMove, are_words_related, optimize_word_order
-from word_drawer import draw_word, click_anagram_word, execute_word_bites_move
-from press_start_button import focus_and_click_start
+from src.game.get_game_board import get_game_board
+from src.game.identify_game_version import identify_game_version
+from src.game.word_finder import find_words, find_anagrams, print_found_words, print_anagram_words, find_word_bites_words, print_word_bites_moves, WordBitesMove, are_words_related, optimize_word_order, calculate_score
+from src.game.word_drawer import draw_word, click_anagram_word, execute_word_bites_move
+from src.game.press_start_button import focus_and_click_start
+from src.utils.window import find_iphone_window
 import time
 import signal
 from concurrent.futures import ThreadPoolExecutor
@@ -11,11 +12,9 @@ from dataclasses import dataclass, field
 from typing import Tuple, List
 import os
 from threading import Lock
-from config import GAME_DURATION, WORD_SCORES
-import traceback
+from src.config.config import GAME_DURATION, WORD_SCORES
 import argparse
 import random
-import re
 from collections import defaultdict
 
 # Parse command line arguments
@@ -23,7 +22,7 @@ parser = argparse.ArgumentParser(description='Game Pigeon Word Game Solver')
 parser.add_argument('--realistic', '-r', action='store_true', 
                     help='Enable realistic mode with human-like scores (15k-25k for Word Hunt, 20k-40k for Word Bites)')
 parser.add_argument('--target', '-t', type=int,
-                    help='Set target score for the game (overrides realistic mode ranges)')
+                    help='Set target score for the game. If realistic mode is enabled, this overrides the default realistic ranges. If realistic mode is disabled, this limits the maximum score.')
 parser.add_argument('--debug', '-d', action='store_true',
                     help='Save debug screenshots during gameplay')
 args = parser.parse_args()
@@ -88,6 +87,10 @@ def timeout_handler(signum, frame):
     print("Program terminated.")
     os._exit(0)
 
+def keyboard_interrupt_handler(signum, frame):
+    print("\nProgram interrupted by user. Exiting...")
+    os._exit(0)
+
 def update_time_remaining():
     global TIME_REMAINING
     TIME_REMAINING = max(0, GAME_DURATION - (time.time() - START_TIME))
@@ -97,8 +100,6 @@ def apply_realistic_mode_word_hunt(all_words):
     Apply realistic mode filtering to Word Hunt words with improved word selection.
     Focuses on common substrings and word families to create more natural word patterns.
     """
-    from word_finder import calculate_score
-    from collections import defaultdict
     
     # Calculate total possible score
     total_possible_score = calculate_score(all_words)
@@ -108,10 +109,13 @@ def apply_realistic_mode_word_hunt(all_words):
     if TARGET_SCORE is not None:
         target_score = min(TARGET_SCORE, total_possible_score * 0.8)
         print(f"Using specified target score: {target_score}")
-    else:
+    elif REALISTIC_MODE:
         target_score = random.randint(WORD_HUNT_MIN_SCORE, WORD_HUNT_MAX_SCORE)
         target_score = min(target_score, total_possible_score * 0.8)
         print(f"Target score for realistic mode: {target_score}")
+    else:
+        # If neither realistic mode nor target score is set, use all words
+        return all_words
 
     def find_common_substrings(words, min_length=3):
         """
@@ -223,8 +227,8 @@ def apply_realistic_mode_word_hunt(all_words):
             selected_words[word] = all_words[word]
             current_score += word_scores[word]
     
-    # Ensure we don't exceed the maximum score
-    if current_score > WORD_HUNT_MAX_SCORE:
+    # Only enforce maximum score if in realistic mode and no target score specified
+    if REALISTIC_MODE and TARGET_SCORE is None and current_score > WORD_HUNT_MAX_SCORE:
         print(f"Score {current_score} exceeds maximum target of {WORD_HUNT_MAX_SCORE}, removing some words...")
         words_to_remove = []
         
@@ -271,8 +275,6 @@ def apply_realistic_mode_word_bites(all_moves):
     Apply realistic mode filtering to Word Bites moves with improved word selection.
     Focuses on common substrings and word families to create more natural word patterns.
     """
-    from word_finder import calculate_score
-    from collections import defaultdict
     
     # Calculate total possible score
     total_possible_score = sum(move.score for move in all_moves)
@@ -282,10 +284,13 @@ def apply_realistic_mode_word_bites(all_moves):
     if TARGET_SCORE is not None:
         target_score = min(TARGET_SCORE, total_possible_score * 0.8)
         print(f"Using specified target score: {target_score}")
-    else:
+    elif REALISTIC_MODE:
         target_score = random.randint(WORD_BITES_MIN_SCORE, WORD_BITES_MAX_SCORE)
         target_score = min(target_score, total_possible_score * 0.8)
         print(f"Target score for realistic mode: {target_score}")
+    else:
+        # If neither realistic mode nor target score is set, use all moves
+        return all_moves
     
     # Group moves by word length
     moves_by_length = {}
@@ -445,8 +450,8 @@ def apply_realistic_mode_word_bites(all_moves):
                 if current_score >= target_score:
                     break
     
-    # Ensure we don't exceed the maximum score
-    if current_score > WORD_BITES_MAX_SCORE:
+    # Only enforce maximum score if in realistic mode and no target score specified
+    if REALISTIC_MODE and TARGET_SCORE is None and current_score > WORD_BITES_MAX_SCORE:
         print(f"Score {current_score} exceeds maximum target of {WORD_BITES_MAX_SCORE}, removing some words...")
         # Remove some words to get below the maximum, but try to preserve related word groups
         moves_to_remove = []
@@ -490,435 +495,450 @@ def apply_realistic_mode_word_bites(all_moves):
     return optimize_word_order(selected_moves)
 
 def main():
-    try:
-        global START_TIME, WORDS_FOUND, GAME_VERSION, REALISTIC_MODE, TARGET_SCORE, SAVE_DEBUG_SCREENSHOTS
-        words_found = 0
+    global START_TIME, WORDS_FOUND, GAME_VERSION, REALISTIC_MODE, TARGET_SCORE, SAVE_DEBUG_SCREENSHOTS
+    
+    # Set up signal handlers
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.signal(signal.SIGINT, keyboard_interrupt_handler)  # Handle Ctrl+C
+    
+    # Parse command line arguments
+    REALISTIC_MODE = args.realistic
+    TARGET_SCORE = args.target
+    SAVE_DEBUG_SCREENSHOTS = args.debug
+    
+    print("Using CPU. Note: This module is much faster with a GPU.")
+    if SAVE_DEBUG_SCREENSHOTS:
+        print("Debug screenshots enabled")
+    else:
+        print("Debug screenshots disabled")
+    
+    if REALISTIC_MODE:
+        print("Running in REALISTIC mode - will aim for human-like scores")
+    else:
+        print("Running in PERFECT mode - will find all possible words")
+    
+    print("Starting game...")
+    
+    # Refresh window cache at start
+    find_iphone_window(force_refresh=True)
+    
+    # Wait for game to load
+    print("Waiting for game to load...")
+    time.sleep(1)
+    
+    # Click the start button first
+    print("Clicking start button...")
+    if not focus_and_click_start():
+        print("Failed to click start button")
+        return
+    
+    print("Waiting for game transition...")
+    time.sleep(0.5)
+    
+    # Identify game version
+    print("Identifying game version...")
+    GAME_VERSION = identify_game_version(save_debug=SAVE_DEBUG_SCREENSHOTS)
+    if not GAME_VERSION:
+        print("Failed to identify game version")
+        return
+    print(f"Detected game version: {GAME_VERSION}")
+    
+    # Refresh window cache before capturing game board
+    find_iphone_window(force_refresh=True)
+    
+    # Get game board
+    print(f"Capturing game board for {GAME_VERSION}...")
+    board = get_game_board(GAME_VERSION, save_debug=SAVE_DEBUG_SCREENSHOTS)
+    if not board:
+        print("Failed to capture game board")
+        return
+    
+    # Print game board
+    if isinstance(board, list):
+        # Word Hunt board
+        for row in board:
+            print(' '.join(row))
+    elif isinstance(board, str):
+        # Anagram board
+        print(board)
+    else:
+        # Word Bites board
+        print(board)
+    
+    # Start gameplay timer
+    START_TIME = time.time()
+    signal.alarm(GAME_DURATION)
+    print(f"Starting gameplay timer ({GAME_DURATION} seconds)...")
+    
+    # Refresh window cache before starting gameplay
+    find_iphone_window(force_refresh=True)
+    
+    # Initialize words_found
+    words_found = 0
+    
+    if GAME_VERSION == "WORD_BITES":
+        print(board)
+        print("Finding all Word Bites words first...")
+        all_moves = list(find_word_bites_words(board))
+        words_found = len(all_moves)
+        WORDS_FOUND = words_found
+        print(f"Found a total of {words_found} possible Word Bites words")
         
-        # Set target score if specified
-        if args.target is not None:
-            TARGET_SCORE = args.target
-            print(f"Target score set to: {TARGET_SCORE}")
-            # Enable realistic mode if target score is specified
-            REALISTIC_MODE = True
-            print("Target score specified - enabling realistic mode")
+        print("Optimizing word order...")
+        optimized_moves = optimize_word_order(all_moves)
         
-        # Set realistic mode if specified
-        if args.realistic:
-            REALISTIC_MODE = True
-            print("Realistic mode enabled")
-            
-        # Set debug screenshots if specified
-        SAVE_DEBUG_SCREENSHOTS = args.debug
-        if SAVE_DEBUG_SCREENSHOTS:
-            print("Debug screenshots enabled")
-        else:
-            print("Debug screenshots disabled")
-        
-        if REALISTIC_MODE:
-            print("Running in REALISTIC mode - scores will be limited to human-like levels")
+        if REALISTIC_MODE or TARGET_SCORE is not None:
             if TARGET_SCORE is not None:
-                print(f"Target score: {TARGET_SCORE} points")
+                optimized_moves = apply_realistic_mode_word_bites(optimized_moves)
             else:
-                print(f"Word Hunt target: {WORD_HUNT_MIN_SCORE}-{WORD_HUNT_MAX_SCORE} points")
-                print(f"Word Bites target: {WORD_BITES_MIN_SCORE}-{WORD_BITES_MAX_SCORE} points")
-        else:
-            print("Running in PERFECT mode - will find all possible words")
+                optimized_moves = apply_realistic_mode_word_bites(optimized_moves)
+            moves_by_length = {}
+            for move in optimized_moves:
+                length = len(move.word)
+                if length not in moves_by_length:
+                    moves_by_length[length] = []
+                moves_by_length[length].append(move)
+            
+            final_moves = []
+            
+            short_moves = []
+            for length in range(3, 5):
+                if length in moves_by_length and moves_by_length[length]:
+                    num_to_take = max(1, int(len(moves_by_length[length]) * 0.4))
+                    short_moves.extend(moves_by_length[length][:num_to_take])
+                    moves_by_length[length] = moves_by_length[length][num_to_take:]
+            
+            random.shuffle(short_moves)
+            final_moves.extend(short_moves)
+            
+            medium_moves = []
+            for length in range(5, 7):
+                if length in moves_by_length and moves_by_length[length]:
+                    num_to_take = max(1, int(len(moves_by_length[length]) * 0.3))
+                    medium_moves.extend(moves_by_length[length][:num_to_take])
+                    moves_by_length[length] = moves_by_length[length][num_to_take:]
+            
+            random.shuffle(medium_moves)
+            final_moves.extend(medium_moves)
+            
+            long_moves = []
+            for length in range(7, 15):
+                if length in moves_by_length and moves_by_length[length]:
+                    num_to_take = max(1, int(len(moves_by_length[length]) * 0.5))
+                    long_moves.extend(moves_by_length[length][:num_to_take])
+                    moves_by_length[length] = moves_by_length[length][num_to_take:]
+            
+            random.shuffle(long_moves)
+            final_moves.extend(long_moves)
+            
+            remaining_moves = []
+            for length in sorted(moves_by_length.keys()):
+                remaining_moves.extend(moves_by_length[length])
+            
+            random.shuffle(remaining_moves)
+            final_moves.extend(remaining_moves)
+            
+            optimized_moves = final_moves
+            print(f"Reordered moves for more human-like play pattern")
         
-        print("Starting game...")
-        if not focus_and_click_start():
-            print("Failed to start game - Could not find or click the start button")
-            return
-            
-        print("Waiting for game to load...")
-        time.sleep(2)
+        move_queue = []
+        heap_lock = Lock()
         
-        signal.signal(signal.SIGALRM, timeout_handler)
+        for move in optimized_moves:
+            with heap_lock:
+                heapq.heappush(move_queue, PrioritizedWordBitesMove(move))
         
-        try:
-            print("Identifying game version...")
-            game_version = identify_game_version(save_debug=SAVE_DEBUG_SCREENSHOTS)
-            
-            if game_version is None:
-                print("Failed to identify game version - No iPhone window found")
-                GAME_VERSION = "unknown - No iPhone window"
-                return
-            
-            GAME_VERSION = game_version
-            print(f"Detected game version: {game_version}")
-            if game_version.startswith('unknown'):
-                print("Failed to identify game version - Unknown game type")
-                return
-        except Exception as e:
-            print(f"Failed to identify game version: {str(e)}")
-            print(f"Error details: {traceback.format_exc()}")
-            GAME_VERSION = f"unknown - Error: {str(e)}"
-            return
+        print("Starting to form words...")
+        with heap_lock:
+            heapq.heappush(move_queue, PrioritizedWordBitesMove(WordBitesMove("", [], 0)))
         
-        try:
-            print(f"Capturing game board for {game_version}...")
-            board = get_game_board(game_version, save_debug=SAVE_DEBUG_SCREENSHOTS)
-        except Exception as e:
-            print(f"Failed to capture game board: {str(e)}")
-            print(f"Error details: {traceback.format_exc()}")
-            return
-
-        if board:
-            print("Game Board captured successfully!")
+        print("Executing all moves...")
+        execute_word_bites_moves_from_heap(move_queue, heap_lock, board)
+        
+    elif GAME_VERSION.startswith('ANAGRAM'):
+        print(' '.join(board[0]))
+        print("Finding anagrams...")
+        found_words = find_anagrams(board, min_length=3)
+        words_found = len(found_words)
+        WORDS_FOUND = words_found
+        
+        print(f"Found {words_found} anagrams. Starting to click words...")
+        if REALISTIC_MODE or TARGET_SCORE is not None:
+            total_possible_score = calculate_score(found_words)
+            print(f"Total possible anagram score: {total_possible_score}")
             
-            START_TIME = time.time()
-            signal.alarm(GAME_DURATION)
-            print(f"Starting gameplay timer ({GAME_DURATION} seconds)...")
+            if TARGET_SCORE is not None:
+                target_score = min(TARGET_SCORE, total_possible_score * 0.8)
+                print(f"Using specified target score: {target_score}")
+            else:
+                target_percentage = random.uniform(0.6, 0.8)
+                target_score = int(total_possible_score * target_percentage)
+                print(f"Target anagram score: {target_score} ({target_percentage*100:.1f}% of possible)")
             
-            if game_version == "WORD_BITES":
-                print(board)
-                print("Finding all Word Bites words first...")
-                all_moves = list(find_word_bites_words(board))
-                words_found = len(all_moves)
-                WORDS_FOUND = words_found
-                print(f"Found a total of {words_found} possible Word Bites words")
+            words_by_length = {}
+            for word in found_words:
+                length = len(word)
+                if length not in words_by_length:
+                    words_by_length[length] = []
+                words_by_length[length].append(word)
+            
+            for length in words_by_length:
+                random.shuffle(words_by_length[length])
+            
+            selected_words = []
+            current_score = 0
+            
+            word_scores = {}
+            for word in found_words:
+                length = len(word)
+                word_scores[word] = WORD_SCORES.get(length, 400 * (length - 2))
+            
+            related_words = {}
+            for word in found_words:
+                related_words[word] = []
+                for other_word in found_words:
+                    if word != other_word:
+                        if word in other_word or other_word in word:
+                            related_words[word].append(other_word)
+                        elif len(word) >= 3 and len(other_word) >= 3:
+                            prefix_len = min(len(word), len(other_word))
+                            if word[:prefix_len] == other_word[:prefix_len]:
+                                related_words[word].append(other_word)
+            
+            for length in sorted(words_by_length.keys()):
+                percentage = 0.7 if length <= 4 else (0.6 if length <= 6 else 0.5)
+                num_to_take = max(1, int(len(words_by_length[length]) * percentage))
                 
-                print("Optimizing word order...")
-                optimized_moves = optimize_word_order(all_moves)
-                
-                if REALISTIC_MODE:
-                    optimized_moves = apply_realistic_mode_word_bites(optimized_moves)
-                    moves_by_length = {}
-                    for move in optimized_moves:
-                        length = len(move.word)
-                        if length not in moves_by_length:
-                            moves_by_length[length] = []
-                        moves_by_length[length].append(move)
+                for word in words_by_length[length][:num_to_take]:
+                    if current_score + word_scores[word] > target_score:
+                        if current_score > target_score * 0.9:
+                            break
+                        if random.random() > 0.3:
+                            continue
                     
-                    final_moves = []
+                    selected_words.append(word)
+                    current_score += word_scores[word]
                     
-                    short_moves = []
-                    for length in range(3, 5):
-                        if length in moves_by_length and moves_by_length[length]:
-                            num_to_take = max(1, int(len(moves_by_length[length]) * 0.4))
-                            short_moves.extend(moves_by_length[length][:num_to_take])
-                            moves_by_length[length] = moves_by_length[length][num_to_take:]
-                    
-                    random.shuffle(short_moves)
-                    final_moves.extend(short_moves)
-                    
-                    medium_moves = []
-                    for length in range(5, 7):
-                        if length in moves_by_length and moves_by_length[length]:
-                            num_to_take = max(1, int(len(moves_by_length[length]) * 0.3))
-                            medium_moves.extend(moves_by_length[length][:num_to_take])
-                            moves_by_length[length] = moves_by_length[length][num_to_take:]
-                    
-                    random.shuffle(medium_moves)
-                    final_moves.extend(medium_moves)
-                    
-                    long_moves = []
-                    for length in range(7, 15):
-                        if length in moves_by_length and moves_by_length[length]:
-                            num_to_take = max(1, int(len(moves_by_length[length]) * 0.5))
-                            long_moves.extend(moves_by_length[length][:num_to_take])
-                            moves_by_length[length] = moves_by_length[length][num_to_take:]
-                    
-                    random.shuffle(long_moves)
-                    final_moves.extend(long_moves)
-                    
-                    remaining_moves = []
-                    for length in sorted(moves_by_length.keys()):
-                        remaining_moves.extend(moves_by_length[length])
-                    
-                    random.shuffle(remaining_moves)
-                    final_moves.extend(remaining_moves)
-                    
-                    optimized_moves = final_moves
-                    print(f"Reordered moves for more human-like play pattern")
-                
-                move_queue = []
-                heap_lock = Lock()
-                
-                for move in optimized_moves:
-                    with heap_lock:
-                        heapq.heappush(move_queue, PrioritizedWordBitesMove(move))
-                
-                print("Starting to form words...")
-                with heap_lock:
-                    heapq.heappush(move_queue, PrioritizedWordBitesMove(WordBitesMove("", [], 0)))
-                
-                print("Executing all moves...")
-                execute_word_bites_moves_from_heap(move_queue, heap_lock, board)
-                
-            elif game_version.startswith('ANAGRAM'):
-                print(' '.join(board[0]))
-                print("Finding anagrams...")
-                found_words = find_anagrams(board, min_length=3)
-                words_found = len(found_words)
-                WORDS_FOUND = words_found
-                
-                print(f"Found {words_found} anagrams. Starting to click words...")
-                if REALISTIC_MODE:
-                    from word_finder import calculate_score
-                    total_possible_score = calculate_score(found_words)
-                    print(f"Total possible anagram score: {total_possible_score}")
-                    
-                    target_percentage = random.uniform(0.6, 0.8)
-                    target_score = int(total_possible_score * target_percentage)
-                    print(f"Target anagram score: {target_score} ({target_percentage*100:.1f}% of possible)")
-                    
-                    words_by_length = {}
-                    for word in found_words:
-                        length = len(word)
-                        if length not in words_by_length:
-                            words_by_length[length] = []
-                        words_by_length[length].append(word)
-                    
-                    for length in words_by_length:
-                        random.shuffle(words_by_length[length])
-                    
-                    selected_words = []
-                    current_score = 0
-                    
-                    word_scores = {}
-                    for word in found_words:
-                        length = len(word)
-                        word_scores[word] = WORD_SCORES.get(length, 400 * (length - 2))
-                    
-                    related_words = {}
-                    for word in found_words:
-                        related_words[word] = []
-                        for other_word in found_words:
-                            if word != other_word:
-                                if word in other_word or other_word in word:
-                                    related_words[word].append(other_word)
-                                elif len(word) >= 3 and len(other_word) >= 3:
-                                    prefix_len = min(len(word), len(other_word))
-                                    if word[:prefix_len] == other_word[:prefix_len]:
-                                        related_words[word].append(other_word)
-                    
-                    for length in sorted(words_by_length.keys()):
-                        percentage = 0.7 if length <= 4 else (0.6 if length <= 6 else 0.5)
-                        num_to_take = max(1, int(len(words_by_length[length]) * percentage))
-                        
-                        for word in words_by_length[length][:num_to_take]:
-                            if current_score + word_scores[word] > target_score:
-                                if current_score > target_score * 0.9:
+                    for related_word in related_words[word]:
+                        if related_word not in selected_words and len(related_word) > len(word):
+                            if random.random() < 0.7:
+                                selected_words.append(related_word)
+                                current_score += word_scores[related_word]
+                                
+                                if current_score >= target_score:
                                     break
-                                if random.random() > 0.3:
-                                    continue
-                            
-                            selected_words.append(word)
-                            current_score += word_scores[word]
-                            
-                            for related_word in related_words[word]:
-                                if related_word not in selected_words and len(related_word) > len(word):
-                                    if random.random() < 0.7:
-                                        selected_words.append(related_word)
-                                        current_score += word_scores[related_word]
-                                        
-                                        if current_score >= target_score:
-                                            break
-                            
-                            if current_score >= target_score:
-                                break
                     
-                    print(f"Selected {len(selected_words)} anagram words with a total score of {current_score}")
-                    print(f"Target was {target_score}, which is {current_score/target_score*100:.1f}% of target")
-                    
-                    length_distribution = {}
-                    for word in selected_words:
-                        length = len(word)
-                        length_distribution[length] = length_distribution.get(length, 0) + 1
-                    
-                    print("Anagram word length distribution:")
-                    for length in sorted(length_distribution.keys()):
-                        print(f"{length} letters: {length_distribution[length]} words")
-                    
-                    play_order = []
-                    
-                    words_by_length = {}
-                    for word in selected_words:
-                        length = len(word)
-                        if length not in words_by_length:
-                            words_by_length[length] = []
-                        words_by_length[length].append(word)
-                    
-                    short_words = []
-                    for length in range(3, 5):
-                        if length in words_by_length:
-                            num_to_take = max(1, int(len(words_by_length[length]) * 0.4))
-                            short_words.extend(words_by_length[length][:num_to_take])
-                            words_by_length[length] = words_by_length[length][num_to_take:]
-                    
-                    random.shuffle(short_words)
-                    play_order.extend(short_words)
-                    
-                    medium_words = []
-                    for length in range(5, 7):
-                        if length in words_by_length:
-                            num_to_take = max(1, int(len(words_by_length[length]) * 0.3))
-                            medium_words.extend(words_by_length[length][:num_to_take])
-                            words_by_length[length] = words_by_length[length][num_to_take:]
-                    
-                    random.shuffle(medium_words)
-                    play_order.extend(medium_words)
-                    
-                    long_words = []
-                    for length in range(7, 15):
-                        if length in words_by_length:
-                            num_to_take = max(1, int(len(words_by_length[length]) * 0.5))
-                            long_words.extend(words_by_length[length][:num_to_take])
-                            words_by_length[length] = words_by_length[length][num_to_take:]
-                    
-                    random.shuffle(long_words)
-                    play_order.extend(long_words)
-                    
-                    remaining_words = []
-                    for length in sorted(words_by_length.keys()):
-                        remaining_words.extend(words_by_length[length])
-                    
-                    random.shuffle(remaining_words)
-                    play_order.extend(remaining_words)
-                    
-                    print(f"Reordered anagram words for more human-like play pattern")
-                    sorted_words = play_order
-                else:
-                    sorted_words = sorted(found_words.keys(), key=lambda x: (-len(x), x))
-                
-                for i, word in enumerate(sorted_words):
-                    if i % 10 == 0:
-                        print(f"Processed {i}/{len(sorted_words)} words...")
-                    click_anagram_word(word, board, game_version)
-                    time.sleep(0.01)
-                
-                print_anagram_words({word: found_words[word] for word in sorted_words})
-            else:
-                for row in board:
-                    print(' '.join(row))
-                word_queue = []
-                word_paths = {}
-                heap_lock = Lock()
-                
-                all_words = {}
-                
-                print(f"Starting word hunt for {game_version}...")
-                
-                for word, path in find_words(board, game_version):
-                    if word not in all_words:
-                        all_words[word] = path
-                
-                if REALISTIC_MODE:
-                    selected_words = apply_realistic_mode_word_hunt(all_words)
-                else:
-                    selected_words = all_words
-                
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    draw_future = executor.submit(draw_words_from_heap, word_queue, heap_lock, game_version)
-                    
-                    if REALISTIC_MODE:
-                        words_by_length = {}
-                        for word in selected_words:
-                            length = len(word)
-                            if length not in words_by_length:
-                                words_by_length[length] = []
-                            words_by_length[length].append(word)
-                        
-                        short_words = []
-                        for length in range(3, 5):
-                            if length in words_by_length:
-                                num_to_take = max(1, int(len(words_by_length[length]) * 0.4))
-                                short_words.extend(words_by_length[length][:num_to_take])
-                                words_by_length[length] = words_by_length[length][num_to_take:]
-                        
-                        random.shuffle(short_words)
-                        
-                        medium_words = []
-                        for length in range(5, 7):
-                            if length in words_by_length:
-                                num_to_take = max(1, int(len(words_by_length[length]) * 0.3))
-                                medium_words.extend(words_by_length[length][:num_to_take])
-                                words_by_length[length] = words_by_length[length][num_to_take:]
-                        
-                        random.shuffle(medium_words)
-                        
-                        long_words = []
-                        for length in range(7, 15):
-                            if length in words_by_length:
-                                num_to_take = max(1, int(len(words_by_length[length]) * 0.5))
-                                long_words.extend(words_by_length[length][:num_to_take])
-                                words_by_length[length] = words_by_length[length][num_to_take:]
-                        
-                        random.shuffle(long_words)
-                        
-                        remaining_words = []
-                        for length in sorted(words_by_length.keys()):
-                            remaining_words.extend(words_by_length[length])
-                        
-                        random.shuffle(remaining_words)
-                        
-                        play_order = short_words + medium_words + long_words + remaining_words
-                        
-                        for word in play_order:
-                            path = selected_words[word]
-                            word_paths[word] = path
-                            words_found += 1
-                            WORDS_FOUND = words_found
-                            with heap_lock:
-                                heapq.heappush(word_queue, PrioritizedWord(word, path))
-                            
-                            if words_found % 20 == 0:
-                                print(f"Found {words_found} words so far...")
-                    else:
-                        for word, path in selected_words.items():
-                            word_paths[word] = path
-                            words_found += 1
-                            WORDS_FOUND = words_found
-                            with heap_lock:
-                                heapq.heappush(word_queue, PrioritizedWord(word, path))
-                            
-                            if words_found % 20 == 0:
-                                print(f"Found {words_found} words so far...")
-                
-                print(f"Found a total of {words_found} words. Starting to draw words...")
-                with heap_lock:
-                    heapq.heappush(word_queue, PrioritizedWord("", []))
-                
-                draw_future.result()
-                
-                print_found_words(word_paths)
+                    if current_score >= target_score:
+                        break
             
-            # Add a small delay before exiting to ensure all words are processed
-            time.sleep(1)
-            print("\nGame completed successfully!")
-            os._exit(0)
+            print(f"Selected {len(selected_words)} anagram words with a total score of {current_score}")
+            print(f"Target was {target_score}, which is {current_score/target_score*100:.1f}% of target")
             
+            length_distribution = {}
+            for word in selected_words:
+                length = len(word)
+                length_distribution[length] = length_distribution.get(length, 0) + 1
+            
+            print("Anagram word length distribution:")
+            for length in sorted(length_distribution.keys()):
+                print(f"{length} letters: {length_distribution[length]} words")
+            
+            play_order = []
+            
+            words_by_length = {}
+            for word in selected_words:
+                length = len(word)
+                if length not in words_by_length:
+                    words_by_length[length] = []
+                words_by_length[length].append(word)
+            
+            short_words = []
+            for length in range(3, 5):
+                if length in words_by_length:
+                    num_to_take = max(1, int(len(words_by_length[length]) * 0.4))
+                    short_words.extend(words_by_length[length][:num_to_take])
+                    words_by_length[length] = words_by_length[length][num_to_take:]
+            
+            random.shuffle(short_words)
+            play_order.extend(short_words)
+            
+            medium_words = []
+            for length in range(5, 7):
+                if length in words_by_length:
+                    num_to_take = max(1, int(len(words_by_length[length]) * 0.3))
+                    medium_words.extend(words_by_length[length][:num_to_take])
+                    words_by_length[length] = words_by_length[length][num_to_take:]
+            
+            random.shuffle(medium_words)
+            play_order.extend(medium_words)
+            
+            long_words = []
+            for length in range(7, 15):
+                if length in words_by_length:
+                    num_to_take = max(1, int(len(words_by_length[length]) * 0.5))
+                    long_words.extend(words_by_length[length][:num_to_take])
+                    words_by_length[length] = words_by_length[length][num_to_take:]
+            
+            random.shuffle(long_words)
+            play_order.extend(long_words)
+            
+            remaining_words = []
+            for length in sorted(words_by_length.keys()):
+                remaining_words.extend(words_by_length[length])
+            
+            random.shuffle(remaining_words)
+            play_order.extend(remaining_words)
+            
+            print(f"Reordered anagram words for more human-like play pattern")
+            sorted_words = play_order
         else:
-            print("Failed to get game board - Board detection returned None")
-            os._exit(1)
+            sorted_words = sorted(found_words.keys(), key=lambda x: (-len(x), x))
+        
+        for i, word in enumerate(sorted_words):
+            if i % 10 == 0:
+                print(f"Processed {i}/{len(sorted_words)} words...")
+            click_anagram_word(word, board, GAME_VERSION)
+            time.sleep(0.01)
+        
+        print_anagram_words({word: found_words[word] for word in sorted_words})
+    else:
+        for row in board:
+            print(' '.join(row))
+        word_queue = []
+        word_paths = {}
+        heap_lock = Lock()
+        
+        all_words = {}
+        
+        print(f"Starting word hunt for {GAME_VERSION}...")
+        
+        for word, path in find_words(board, GAME_VERSION):
+            if word not in all_words:
+                all_words[word] = path
+        
+        if REALISTIC_MODE or TARGET_SCORE is not None:
+            selected_words = apply_realistic_mode_word_hunt(all_words)
+        else:
+            selected_words = all_words
+        
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(draw_words_from_heap, word_queue, heap_lock, board, GAME_VERSION)
             
-    except KeyboardInterrupt:
-        print("\nProgram interrupted by user")
-        os._exit(0)
-    except Exception as e:
-        print(f"Unexpected error: {str(e)}")
-        print(f"Error details: {traceback.format_exc()}")
-        os._exit(1)
-    finally:
-        signal.alarm(0)
-        os._exit(0)  # Ensure we exit even if there's an error
+            if REALISTIC_MODE or TARGET_SCORE is not None:
+                words_by_length = {}
+                for word in selected_words:
+                    length = len(word)
+                    if length not in words_by_length:
+                        words_by_length[length] = []
+                    words_by_length[length].append(word)
+                
+                short_words = []
+                for length in range(3, 5):
+                    if length in words_by_length:
+                        num_to_take = max(1, int(len(words_by_length[length]) * 0.4))
+                        short_words.extend(words_by_length[length][:num_to_take])
+                        words_by_length[length] = words_by_length[length][num_to_take:]
+                
+                random.shuffle(short_words)
+                
+                medium_words = []
+                for length in range(5, 7):
+                    if length in words_by_length:
+                        num_to_take = max(1, int(len(words_by_length[length]) * 0.3))
+                        medium_words.extend(words_by_length[length][:num_to_take])
+                        words_by_length[length] = words_by_length[length][num_to_take:]
+                
+                random.shuffle(medium_words)
+                
+                long_words = []
+                for length in range(7, 15):
+                    if length in words_by_length:
+                        num_to_take = max(1, int(len(words_by_length[length]) * 0.5))
+                        long_words.extend(words_by_length[length][:num_to_take])
+                        words_by_length[length] = words_by_length[length][num_to_take:]
+                
+                random.shuffle(long_words)
+                
+                remaining_words = []
+                for length in sorted(words_by_length.keys()):
+                    remaining_words.extend(words_by_length[length])
+                
+                random.shuffle(remaining_words)
+                
+                play_order = short_words + medium_words + long_words + remaining_words
+                
+                for word in play_order:
+                    path = selected_words[word]
+                    word_paths[word] = path
+                    words_found += 1
+                    WORDS_FOUND = words_found
+                    with heap_lock:
+                        heapq.heappush(word_queue, PrioritizedWord(word, path))
+                    
+                    if words_found % 20 == 0:
+                        print(f"Found {words_found} words so far...")
+            else:
+                for word, path in selected_words.items():
+                    word_paths[word] = path
+                    words_found += 1
+                    WORDS_FOUND = words_found
+                    with heap_lock:
+                        heapq.heappush(word_queue, PrioritizedWord(word, path))
+                    
+                    if words_found % 20 == 0:
+                        print(f"Found {words_found} words so far...")
+        
+        print(f"Found a total of {words_found} words. Starting to draw words...")
+        with heap_lock:
+            heapq.heappush(word_queue, PrioritizedWord("", []))
+        
+        # Start word drawing in a separate thread
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(draw_words_from_heap, word_queue, heap_lock, board, GAME_VERSION)
+            
+            # Wait for either completion or timeout
+            try:
+                future.result(timeout=GAME_DURATION)
+                print("\nAll words drawn successfully!")
+            except TimeoutError:
+                print("\nGame duration expired!")
+            except Exception as e:
+                print(f"\nError during word drawing: {str(e)}")
+            
+            # Cancel the future and shutdown the executor
+            future.cancel()
+            executor.shutdown(wait=False)
+        
+        # Print final stats
+        print(f"\nWord Hunt stats:")
+        print(f"Words found: {words_found}")
+        print(f"Time played: {time.time() - START_TIME:.1f} seconds")
+        print("Program completed successfully.")
+        os._exit(0)  # Force exit to ensure clean shutdown
+    
+    # Add a small delay before exiting to ensure all words are processed
+    time.sleep(1)
+    print("\nGame completed successfully!")
+    os._exit(0)
 
-def draw_words_from_heap(word_heap: List[PrioritizedWord], heap_lock: Lock, game_version: str) -> None:
+def draw_words_from_heap(word_heap: List[PrioritizedWord], heap_lock: Lock, board, game_version: str) -> None:
     """Draw words as they become available in the heap, longest first"""
+    words_drawn = 0
     while True:
         with heap_lock:
             if not word_heap:
+                # If heap is empty and we've drawn words, we're done
+                if words_drawn > 0:
+                    print(f"\nAll words drawn! Total words: {words_drawn}")
+                    return
                 time.sleep(0.1)
                 continue
             
             prioritized_word = heapq.heappop(word_heap)
-        
-        # Check for sentinel value
-        if not prioritized_word.path:
-            break
             
         # Draw the word directly
         draw_word(prioritized_word.path, game_version)
+        words_drawn += 1
 
 def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove], heap_lock: Lock, board) -> None:
     """Execute Word Bites moves as they become available in the heap, highest score first"""
@@ -976,7 +996,6 @@ def execute_word_bites_moves_from_heap(move_heap: List[PrioritizedWordBitesMove]
                 
                 if modified_block_moves:
                     # Create a new move with just the blocks we need to add
-                    from word_finder import WordBitesMove
                     modified_move = WordBitesMove(move.word, modified_block_moves, move.score, move.is_vertical, move.block_moves)
                     success = execute_word_bites_move(modified_move, board, True)
                 else:

@@ -1,43 +1,22 @@
 import Quartz
-import pyautogui
 import cv2
 import numpy as np
 import os
-import time
 import PIL.Image
 import traceback
-
-def find_iphone_window():
-    # List of possible window title keywords for iPhone mirroring
-    iphone_keywords = ['iPhone', 'iOS', 'QuickTime Player']
-    
-    # Get all windows
-    windows = Quartz.CGWindowListCopyWindowInfo(
-        Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements,
-        Quartz.kCGNullWindowID
-    )
-    
-    # Check if this is an iPhone window
-    for window in windows:
-        title = window.get(Quartz.kCGWindowName, 'Unknown')
-        owner = window.get(Quartz.kCGWindowOwnerName, 'Unknown')
-        
-        for keyword in iphone_keywords:
-            if (keyword.lower() in str(title).lower() or 
-                keyword.lower() in str(owner).lower()):
-                print(f"Found iPhone window: '{title}' by '{owner}'")
-                return window.get(Quartz.kCGWindowBounds)
-    
-    print("No iPhone window found. Available windows:")
-    for window in windows:
-        title = window.get(Quartz.kCGWindowName, 'Unknown')
-        owner = window.get(Quartz.kCGWindowOwnerName, 'Unknown')
-        if title != 'Unknown' or owner != 'Unknown':
-            print(f"- '{title}' by '{owner}'")
-                
-    return None
+from PIL import Image
+from src.utils.window import find_iphone_window
 
 def identify_game_version(save_debug=False):
+    """
+    Identify which version of the game is being played.
+    
+    Args:
+        save_debug: If True, save debug images to the debug directory.
+        
+    Returns:
+        str: The game version ("4x4", "X", "O", "ANAGRAM6", "ANAGRAM7", or "WORD_BITES")
+    """
     try:
         # Create debug directory if it doesn't exist
         if save_debug and not os.path.exists('debug'):
@@ -49,14 +28,14 @@ def identify_game_version(save_debug=False):
             print("No iPhone window found")
             return None
         
-        print(f"iPhone window found at: x={window_bounds['X']}, y={window_bounds['Y']}, width={window_bounds['Width']}, height={window_bounds['Height']}")
+        print(f"iPhone window found at: x={window_bounds['x']}, y={window_bounds['y']}, width={window_bounds['width']}, height={window_bounds['height']}")
             
         # Capture screenshot using Quartz (macOS)
         padding = 20
-        x = int(window_bounds['X']) + padding
-        y = int(window_bounds['Y']) + padding
-        width = int(window_bounds['Width']) - (2 * padding)
-        height = int(window_bounds['Height']) - (2 * padding)
+        x = int(window_bounds['x']) + padding
+        y = int(window_bounds['y']) + padding
+        width = int(window_bounds['width']) - (2 * padding)
+        height = int(window_bounds['height']) - (2 * padding)
         
         # Get screen size
         screen = Quartz.CGDisplayBounds(Quartz.CGMainDisplayID())

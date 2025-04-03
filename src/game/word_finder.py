@@ -1,6 +1,6 @@
 from typing import List, Set, Tuple, Dict, Optional
-from config import WORD_SCORES, WORD_LIST_PATH  # Add imports from config
-from word_bites_board import WordBitesBoard, Block, BlockType
+from src.config.config import WORD_SCORES, WORD_LIST_PATH
+from src.game.word_bites_board import WordBitesBoard, Block, BlockType
 from dataclasses import dataclass
 from copy import deepcopy
 
