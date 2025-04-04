@@ -29,16 +29,16 @@ pip install -r requirements.txt
 3. Run the bot with optional arguments:
 ```sh
 # Normal mode - finds all possible words
-python src/main.py
+python main.py
 
 # Realistic mode - limits scores to human-like levels
-python src/main.py --realistic
+python main.py --realistic
 
 # Target score mode - aims for a specific score
-python src/main.py --target 10000
+python main.py --target 10000
 
 # Debug mode - saves screenshots and processing images
-python src/main.py --debug
+python main.py --debug
 ```
 
 ## Project Structure
