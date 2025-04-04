@@ -4,8 +4,8 @@ import os
 # Add the parent directory to the path so we can import the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from word_finder import WordBitesMove, find_word_bites_words
-from word_bites_board import WordBitesBoard, Block, BlockType
+from src.game.word_finder import WordBitesMove, find_word_bites_words
+from src.game.word_bites_board import WordBitesBoard, Block, BlockType
 
 def test_vertical_word_finding():
     """Test that the bot can find vertical words (top to bottom)"""

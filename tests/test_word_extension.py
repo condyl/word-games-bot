@@ -6,9 +6,9 @@ import os
 # Add the parent directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from word_finder import WordBitesMove
-from word_drawer import execute_word_bites_moves
-from word_bites_board import WordBitesBoard, Block, BlockType
+from src.game.word_finder import WordBitesMove
+from src.game.word_drawer import execute_word_bites_moves
+from src.game.word_bites_board import WordBitesBoard, Block, BlockType
 
 # Create a mock board for testing
 class MockBoard(WordBitesBoard):
@@ -73,8 +73,8 @@ def mock_move_word_bites_block(block, row, col, board):
     return True
 
 # Patch the move_word_bites_block function
-import word_drawer
-word_drawer.move_word_bites_block = mock_move_word_bites_block
+import src.game.word_drawer
+src.game.word_drawer.move_word_bites_block = mock_move_word_bites_block
 
 def main():
     # Create a mock board

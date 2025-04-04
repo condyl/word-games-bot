@@ -6,7 +6,7 @@ from typing import List, Tuple, Any
 
 # Add the parent directory to the path so we can import word_finder
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from word_finder import are_words_related, optimize_word_order
+from src.game.word_finder import are_words_related, optimize_word_order
 
 # Create a mock WordBitesMove class that doesn't override our scores
 @dataclass

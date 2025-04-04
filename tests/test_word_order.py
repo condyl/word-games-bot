@@ -4,7 +4,7 @@ import os
 # Add the parent directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from word_finder import WordBitesMove, optimize_word_order, are_words_related
+from src.game.word_finder import WordBitesMove, optimize_word_order, are_words_related
 
 # Create test moves with various words and scores
 moves = [

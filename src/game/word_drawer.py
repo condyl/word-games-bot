@@ -1,4 +1,3 @@
-
 from typing import List, Tuple
 import Quartz
 from src.game.word_bites_board import WordBitesBoard, Block, BlockType
@@ -6,6 +5,7 @@ from src.game.word_finder import WordBitesMove
 from src.utils.window import find_iphone_window
 from threading import Lock
 import time
+from src.game.word_finder import are_words_related, WordBitesMove
 
 def get_letter_position(x: int, y: int, game_version: str = "4x4") -> Tuple[int, int]:
     """
@@ -456,8 +456,6 @@ def execute_word_bites_moves(moves: List[WordBitesMove], board: WordBitesBoard) 
     so "UNTHINK" and "THINK" would not be considered related despite sharing
     a common stem.
     """
-    from word_finder import are_words_related
-    
     total_score = 0
     words_formed = 0
     failed_words = []
@@ -500,7 +498,6 @@ def execute_word_bites_moves(moves: List[WordBitesMove], board: WordBitesBoard) 
                     
                     if modified_block_moves:
                         # Create a new move with just the blocks we need to add
-                        from word_finder import WordBitesMove
                         modified_move = WordBitesMove(move.word, modified_block_moves, move.score)
                         success = execute_word_bites_move(modified_move, board, preserve_word)
                     else:
@@ -567,7 +564,6 @@ def execute_word_bites_moves(moves: List[WordBitesMove], board: WordBitesBoard) 
             block_moves.sort(key=lambda x: x[2])
             
             # Create a new move with reordered blocks
-            from word_finder import WordBitesMove
             reordered_move = WordBitesMove(move.word, [(b, p) for b, p, _ in block_moves], move.score)
             
             if execute_word_bites_move(reordered_move, board, False):
